@@ -214,9 +214,9 @@ test('lobby fullscreen button toggles fullscreen and follows external exit', () 
   elements.get('btn-lobby-fullscreen').events.click(); assert.equal(enters, 1);
   ctx.document.fullscreenElement = {};
   documentEvents.fullscreenchange();
-  assert.equal(elements.get('btn-lobby-fullscreen').textContent, '⛶ 退出全屏');
+  assert.equal(elements.get('btn-lobby-fullscreen').title, '退出全屏');
   elements.get('btn-lobby-fullscreen').events.click(); assert.equal(exits, 1);
   ctx.document.fullscreenElement = null; documentEvents.fullscreenchange();
-  assert.equal(elements.get('btn-lobby-fullscreen').textContent, '⛶ 全屏');
+  assert.equal(elements.get('btn-lobby-fullscreen').title, '全屏');
   assert.equal(elements.get('btn-lobby-fullscreen')['aria-pressed'], 'false');
 });

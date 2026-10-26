@@ -381,7 +381,7 @@ function renderTable(room) {
     const sc = S.scout;
     const value = chosen ? (sc.up === 'a' ? sc.card.a : sc.card.b) : c.value;
     const other = chosen ? (sc.up === 'a' ? sc.card.b : sc.card.a) : c.other;
-    const card = cardEl(value, { sub: other, small: true, idx: i,
+    const card = cardEl(value, { sub: other, small: isMobileLayout(), idx: i,
       cls: chosen ? 'scout-chosen' : isEdge ? 'show-edge' : sc ? 'scout-unavailable' : '' });
     if (isEdge) {
       card.addEventListener('click', () => pickScoutEdge(i === 0 ? 'left' : 'right'));
@@ -834,7 +834,8 @@ $('btn-fullscreen').addEventListener('click', toggleFullscreen);
 $('btn-lobby-fullscreen').addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', () => {
   const active = !!document.fullscreenElement;
-  $('btn-lobby-fullscreen').textContent = active ? '⛶ 退出全屏' : '⛶ 全屏';
+  $('btn-lobby-fullscreen').title = active ? '退出全屏' : '全屏';
+  $('btn-lobby-fullscreen').setAttribute('aria-label', active ? '退出全屏' : '全屏');
   $('btn-lobby-fullscreen').setAttribute('aria-pressed', String(active));
   $('btn-fullscreen').setAttribute('aria-pressed', String(active));
   $('btn-fullscreen').title = active ? '退出全屏' : '全屏';
@@ -938,11 +939,12 @@ function fitHand() {
   let cw = Math.floor(available / n);
   cw = Math.max(28, Math.min(74, cw));
   hand.style.setProperty('--cw', cw + 'px');
+  $('table').style.setProperty('--cw', cw + 'px');
 }
 let fitTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(fitTimer);
-  fitTimer = setTimeout(() => { if (S.room && S.room.phase !== 'lobby') { fitHand(); renderInsertMarks(); } }, 150);
+  fitTimer = setTimeout(() => { if (S.room && S.room.phase !== 'lobby') { renderTable(S.room); fitHand(); renderInsertMarks(); } }, 150);
 });
 
 /* ---------------- 全屏 ---------------- */

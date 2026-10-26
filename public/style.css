@@ -35,6 +35,7 @@
 #connection-slot { display: flex; min-width: 0; }
 #connection-slot #connection-status { position: static; max-width: 150px; padding: 3px 6px; }
 .room-setting { display: block; margin: 12px 0; font-size: 13px; color: #7a5c3a; }
+.lobby-fullscreen { position: fixed; top: max(8px, env(safe-area-inset-top, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); z-index: 3; }
 .ready-summary { color: #7a5c3a; overflow-wrap: anywhere; }
 .results { margin-top: 12px; font-size: 13px; }
 .results summary { cursor: pointer; color: #a82626; font-weight: 700; }
