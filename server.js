@@ -109,6 +109,8 @@ function newRoom(code) {
     mustShow: false,
     lastRound: null, // 上轮结算明细
     abandoned: false, // 是否因玩家退出而结束
+    eventSeq: 0, // 音效事件序号
+    lastEvent: null, // { type: 'show'|'scout'|'score', seq }
   };
 }
 
@@ -177,6 +179,7 @@ function publicState(room) {
     currentIdx: room.currentIdx,
     mustShow: room.mustShow,
     abandoned: room.abandoned,
+    lastEvent: room.lastEvent,
     players: room.players.map((p, i) => ({
       idx: i,
       name: p.name,
@@ -235,6 +238,7 @@ function error(socket, message) {
 
 function endRound(room, kind, winnerIdx) {
   room.phase = 'roundEnd';
+  room.lastEvent = { type: 'score', seq: ++room.eventSeq };
   const detail = room.players.map((p, i) => {
     let penalty = p.hand.length;
     if ((kind === 'survived' || kind === 'twoPlayerStuck') && i === winnerIdx) penalty = 0; // 表演存活者手牌不扣分
@@ -352,6 +356,7 @@ function doShow(room, playerIdx, indices) {
     length: cards.length,
   };
   room.mustShow = false;
+  room.lastEvent = { type: 'show', seq: ++room.eventSeq };
 
   if (p.hand.length === 0) {
     endRound(room, 'wentOut', playerIdx);
@@ -394,6 +399,7 @@ function doScout(room, playerIdx, opts) {
     // 3-5 人局：表演主人获得 1 个筹码
     room.players[room.currentShow.ownerIdx].chips += 1;
   }
+  room.lastEvent = { type: 'scout', seq: ++room.eventSeq };
 
   const scoutShow = !!opts.scoutShow;
 

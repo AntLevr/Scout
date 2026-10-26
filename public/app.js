@@ -10,6 +10,7 @@ const S = {
   name: localStorage.getItem('scout-name') || '',
   sel: null, // {a, b} 手牌选中区间（含端点）
   scout: null, // 侦察弹窗状态机
+  lastEventSeq: null, // 已播放的音效事件序号
 };
 
 function $(id) { return document.getElementById(id); }
@@ -245,7 +246,9 @@ function renderOpponents(room) {
     name.textContent = p.name;
     const row = document.createElement('div');
     row.className = 'orow';
-    row.textContent = `手牌 ${p.handCount} · 筹码 ${p.chips} · 得分 ${p.scorePileCount} · 总分 ${p.totalScore}`;
+    row.textContent = room.players.length === 2
+      ? `手牌 ${p.handCount} · 筹码 ${p.chips} · 得分 ${p.scorePileCount} · 总分 ${p.totalScore}`
+      : `手牌 ${p.handCount} · 得分 ${p.scorePileCount} · 总分 ${p.totalScore}`;
     div.appendChild(name);
     div.appendChild(row);
     if (p.idx === room.currentShow?.ownerIdx) {
@@ -305,6 +308,8 @@ function renderMyArea(room, me) {
   $('my-captured').textContent = room.players[me.yourIdx].scorePileCount;
   $('my-chips').textContent = room.players[me.yourIdx].chips;
   $('my-total').textContent = room.players[me.yourIdx].totalScore;
+  // 筹码计数仅在 2 人局显示（2 人局筹码是侦察资源）
+  $('my-chips-stat').classList.toggle('hidden', room.players.length !== 2);
   const ss = $('my-ss-token');
   ss.classList.toggle('tok', true);
   ss.classList.toggle('used', me.scoutShowUsed || room.players.length === 2);
@@ -312,11 +317,13 @@ function renderMyArea(room, me) {
 
   if (room.phase === 'orient') {
     renderOrientHand(me);
+    fitHand();
     return;
   }
 
   renderHand(room, me);
   renderActions(room, me);
+  fitHand();
 }
 
 function renderOrientHand(me) {
@@ -412,9 +419,16 @@ function renderSelectionHint(room, me) {
 function renderActions(room, me) {
   const actions = $('actions');
   actions.innerHTML = '';
-  const myTurn = room.phase === 'playing' && room.currentIdx === me.yourIdx;
+  if (room.phase !== 'playing') { $('action-hint').textContent = ''; return; }
+
+  const myTurn = room.currentIdx === me.yourIdx;
+  if (!myTurn) {
+    $('action-hint').textContent = '等待其他玩家行动…';
+    return; // 非自己回合：不显示表演/侦察按钮
+  }
+
   const sel = selectionRange();
-  const canShow = myTurn && sel && classify(sel.indices.map((i) => me.hand[i]).map((c) => c.value)).valid;
+  const canShow = sel && classify(sel.indices.map((i) => me.hand[i]).map((c) => c.value)).valid;
 
   const showBtn = document.createElement('button');
   showBtn.className = 'btn btn-primary';
@@ -436,15 +450,13 @@ function renderActions(room, me) {
     });
   } else {
     scoutBtn.textContent = room.players.length === 2 ? '🕵️ 侦察（消耗筹码）' : '🕵️ 侦察';
-    scoutBtn.disabled = !(myTurn && me.canScout);
+    scoutBtn.disabled = !me.canScout;
     scoutBtn.addEventListener('click', () => openScoutModal());
   }
   actions.appendChild(scoutBtn);
 
-  if (myTurn && room.mustShow) {
+  if (room.mustShow) {
     $('action-hint').textContent = '必须表演：请选择手牌打出。';
-  } else if (!myTurn) {
-    $('action-hint').textContent = '等待其他玩家行动…';
   } else if (!S.sel) {
     $('action-hint').textContent = '选择要打出的牌，或点击「侦察」挖角。';
   }
@@ -633,11 +645,12 @@ $('code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('b
 $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-create').click(); });
 
 $('btn-copy').addEventListener('click', () => copyText(S.room.code));
-$('btn-start').addEventListener('click', () => socket.emit('startGame', {}, (ack) => { if (ack && !ack.ok) toast(ack.message); }));
+$('btn-start').addEventListener('click', () => { enterFullscreen(); socket.emit('startGame', {}, (ack) => { if (ack && !ack.ok) toast(ack.message); }); });
 $('btn-leave').addEventListener('click', () => leaveGame());
 $('btn-leave-game').addEventListener('click', () => {
   if (confirm('确定退出房间？若对局进行中，本局将结束。')) leaveGame();
 });
+$('btn-fullscreen').addEventListener('click', toggleFullscreen);
 
 function leaveGame() {
   let done = false;
@@ -663,11 +676,95 @@ $('btn-rules').addEventListener('click', openRules);
 $('btn-rules2').addEventListener('click', openRules);
 $('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) closeOverlay(); });
 
+/* ---------------- 音效 ---------------- */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+document.addEventListener('pointerdown', () => { try { ensureAudio(); } catch (e) {} }, { once: true });
+
+function tone(freq, start, dur, type, gain) {
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.linearRampToValueAtTime(gain, start + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  osc.connect(g).connect(ctx.destination);
+  osc.start(start);
+  osc.stop(start + dur + 0.02);
+}
+
+function playSfx(type) {
+  try {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    if (type === 'show') {
+      tone(440, t, 0.08, 'triangle', 0.22);
+      tone(660, t + 0.06, 0.12, 'triangle', 0.2);
+    } else if (type === 'scout') {
+      tone(520, t, 0.09, 'square', 0.1);
+      tone(330, t + 0.07, 0.12, 'square', 0.1);
+    } else if (type === 'score') {
+      tone(523.25, t, 0.1, 'sine', 0.22);
+      tone(783.99, t + 0.09, 0.18, 'sine', 0.22);
+    }
+  } catch (e) {}
+}
+
+/* ---------------- 手牌自适应（移动端全部显示、无需滚动） ---------------- */
+function fitHand() {
+  const hand = $('hand');
+  const n = hand.children.length;
+  if (!n) { hand.style.removeProperty('--cw'); return; }
+  const gap = parseFloat(getComputedStyle(hand).columnGap || getComputedStyle(hand).gap || '6px') || 6;
+  const available = hand.clientWidth - gap * (n - 1) - 4;
+  let cw = Math.floor(available / n);
+  cw = Math.max(30, Math.min(74, cw));
+  hand.style.setProperty('--cw', cw + 'px');
+}
+let fitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(() => { if (S.room && S.room.phase !== 'lobby') fitHand(); }, 150);
+});
+
+/* ---------------- 全屏 ---------------- */
+function enterFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
+function toggleFullscreen() {
+  if (!document.fullscreenElement) enterFullscreen();
+  else document.exitFullscreen && document.exitFullscreen().catch(() => {});
+}
+
 /* ---------------- Socket 事件 ---------------- */
 
 socket.on('state', (data) => {
   S.room = data.public;
   S.me = data.private;
+
+  // 音效：按事件序号播放
+  const ev = S.room.lastEvent;
+  if (ev && ev.seq) {
+    if (S.lastEventSeq == null) S.lastEventSeq = ev.seq;
+    else if (ev.seq > S.lastEventSeq) { S.lastEventSeq = ev.seq; playSfx(ev.type); }
+  }
+
+  // 游戏模式标记（移动端横屏提示用）
+  document.body.classList.toggle('game-mode', S.room.phase !== 'lobby');
+
   // 阶段切换时重置选中与侦察状态
   if (S.room.phase !== 'playing') { S.sel = null; selStart = selEnd = null; if (S.scout && S.scout.step === 'pick') S.scout = null; }
   render();

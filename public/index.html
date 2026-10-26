@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
+  <div id="rotate-hint" class="rotate-hint">
+    <div class="rotate-icon">📱↻</div>
+    <div>请将手机旋转到横屏</div>
+    <div class="rotate-sub">横屏下所有手牌将完整显示</div>
+  </div>
   <div id="app">
     <!-- ============ 大厅 ============ -->
     <section id="lobby" class="screen">
@@ -54,6 +59,7 @@
         </div>
         <div class="topbar-center" id="turn-hint">准备中…</div>
         <div class="topbar-right">
+          <button id="btn-fullscreen" class="btn btn-ghost btn-mini" title="全屏">⛶</button>
           <button id="btn-leave-game" class="btn btn-danger btn-mini">退出</button>
           <button id="btn-rules2" class="btn btn-ghost btn-mini">规则</button>
         </div>
@@ -66,7 +72,7 @@
       <div id="myarea" class="myarea">
         <div class="my-stats">
           <div class="stat">🎪 得分牌 <b id="my-captured">0</b></div>
-          <div class="stat">🪙 筹码 <b id="my-chips">0</b></div>
+          <div class="stat" id="my-chips-stat">🪙 筹码 <b id="my-chips">0</b></div>
           <div class="stat">📈 总分 <b id="my-total">0</b></div>
           <div class="stat" id="my-ss-token">✨ 侦察+表演</div>
         </div>
