@@ -48,6 +48,11 @@ function activeValue(card) {
   return card.up === 'b' ? card.b : card.a;
 }
 
+// 牌背面（非当前朝向）的数字
+function otherValue(card) {
+  return card.up === 'b' ? card.a : card.b;
+}
+
 // 判定一组数字是否是合法牌型（同数 set / 顺子 run），并给出类型与最大数字。
 function classify(values) {
   const n = values.length;
@@ -189,7 +194,7 @@ function publicState(room) {
           type: room.currentShow.type,
           top: room.currentShow.top,
           length: room.currentShow.length,
-          cards: room.currentShow.cards.map((c) => ({ value: activeValue(c) })),
+          cards: room.currentShow.cards.map((c) => ({ value: activeValue(c), other: otherValue(c) })),
         }
       : null,
     lastRound: room.lastRound,

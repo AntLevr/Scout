@@ -139,17 +139,17 @@ html, body {
   background: var(--card-bg);
   border: 2px solid #d9c9a6;
   box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
   cursor: pointer;
   transition: transform 0.08s ease, border-color 0.1s ease, box-shadow 0.1s ease;
   font-variant-numeric: tabular-nums;
   touch-action: none;
 }
-.card .v-main { font-size: 38px; font-weight: 900; color: var(--ink); line-height: 1; }
-.card .v-sub { font-size: 14px; color: #b09a72; transform: rotate(180deg); margin-top: 2px; }
+.card .v-main { position: absolute; top: 5px; left: 8px; font-size: 30px; font-weight: 900; color: var(--ink); line-height: 1; }
+.card .v-sub { position: absolute; bottom: 5px; right: 8px; font-size: 15px; font-weight: 700; color: #9c8357; transform: rotate(180deg); line-height: 1; }
+.card .underlined { text-decoration: underline; text-underline-offset: 3px; }
 .card.small { width: 56px; height: 80px; }
-.card.small .v-main { font-size: 28px; }
-.card.small .v-sub { font-size: 11px; }
+.card.small .v-main { font-size: 22px; top: 3px; left: 6px; }
+.card.small .v-sub { font-size: 11px; bottom: 3px; right: 6px; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.55), 0 3px 8px rgba(0,0,0,0.3); transform: translateY(-6px); }
 .card.show-edge { outline: 3px dashed var(--gold); outline-offset: 2px; }
 .card.flipped-note { background: #fff3d6; }
@@ -207,7 +207,7 @@ html, body {
 
 @media (max-width: 560px) {
   .card { width: 60px; height: 86px; }
-  .card .v-main { font-size: 30px; }
-  .card .v-sub { font-size: 12px; }
+  .card .v-main { font-size: 24px; top: 4px; left: 6px; }
+  .card .v-sub { font-size: 12px; bottom: 4px; right: 6px; }
   .hand { gap: 4px; }
 }

@@ -64,11 +64,13 @@ function cardEl(value, extra = {}) {
   if (extra.idx != null) el.dataset.idx = extra.idx;
   const main = document.createElement('div');
   main.className = 'v-main';
+  if (value === 6 || value === 9) main.classList.add('underlined');
   main.textContent = value;
   el.appendChild(main);
   if (extra.sub != null) {
     const sub = document.createElement('div');
     sub.className = 'v-sub';
+    if (extra.sub === 6 || extra.sub === 9) sub.classList.add('underlined');
     sub.textContent = extra.sub;
     el.appendChild(sub);
   }
@@ -269,7 +271,7 @@ function renderTable(room) {
   cards.className = 'show-cards';
   show.cards.forEach((c, i) => {
     const isEdge = S.scout && S.scout.step === 'pick' && (i === 0 || i === show.cards.length - 1);
-    const card = cardEl(c.value, { small: true, idx: i, cls: isEdge ? 'show-edge' : '' });
+    const card = cardEl(c.value, { sub: c.other, small: true, idx: i, cls: isEdge ? 'show-edge' : '' });
     if (isEdge) {
       card.addEventListener('click', () => pickScoutEdge(i === 0 ? 'left' : 'right'));
     }
