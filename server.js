@@ -108,6 +108,7 @@ function newRoom(code) {
     abandoned: false, // 是否因玩家退出而结束
     eventSeq: 0, // 音效事件序号
     lastEvent: null, // { type: 'show'|'scout'|'score', seq }
+    chat: [],
   };
 }
 
@@ -206,6 +207,7 @@ function publicState(room) {
         }
       : null,
     lastRound: room.lastRound,
+    chat: room.chat,
   };
 }
 
@@ -463,6 +465,30 @@ function scoutPreview(room, playerIdx, edge) {
 io.on('connection', (socket) => {
   let joinedRoom = null;
   let joinedIdx = -1;
+
+  socket.on('chat', (payload, ack) => {
+    const room = joinedRoom;
+    const player = room && playerBySocket(room, socket.id);
+    const reply = (result) => { if (typeof ack === 'function') ack(result); };
+    if (!player) return reply({ ok: false, message: '请先加入房间' });
+    const text = payload && payload.text;
+    if (typeof text !== 'string' || !text.trim() || text.length > 200) {
+      return reply({ ok: false, message: '消息需为 1–200 个字符' });
+    }
+    const now = Date.now();
+    if (player.lastChatAt && now - player.lastChatAt < 1000) {
+      return reply({ ok: false, message: '发送太快，请稍后再试' });
+    }
+    player.lastChatAt = now;
+    room.chat.push({ id: crypto.randomUUID(), name: player.name,
+      seat: room.players.indexOf(player) + 1, text: text.trim(), time: now });
+    if (room.chat.length > 50) room.chat.shift();
+    for (const member of room.players) {
+      const target = io.sockets.sockets.get(member.socketId);
+      if (target) target.emit('chatHistory', room.chat);
+    }
+    reply({ ok: true });
+  });
 
   socket.on('join', (payload, ack) => {
     const code = String(payload && payload.room || '').trim().toUpperCase();

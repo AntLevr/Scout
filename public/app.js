@@ -774,6 +774,8 @@ function toggleFullscreen() {
 /* ---------------- Socket 事件 ---------------- */
 
 socket.on('state', (data) => {
+  $('chat-panel').classList.remove('hidden');
+  renderChat(data.public.chat || []);
   const prevIdx = S.room ? S.room.currentIdx : -1;
   const prevPhase = S.room ? S.room.phase : null;
   S.room = data.public;
@@ -801,6 +803,59 @@ socket.on('state', (data) => {
 });
 
 socket.on('error', (data) => toast(data.message));
+
+/* ---------------- 房间聊天 ---------------- */
+let chatOpen = false;
+let chatLastId = null;
+let chatUnread = 0;
+function renderChat(messages) {
+  const list = $('chat-messages');
+  const lastId = messages.length ? messages[messages.length - 1].id : null;
+  if (lastId === chatLastId) return;
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+  if (!chatOpen && chatLastId) {
+    const previous = messages.findIndex((m) => m.id === chatLastId);
+    chatUnread += previous < 0 ? messages.length : messages.length - previous - 1;
+  }
+  chatLastId = lastId;
+  list.replaceChildren();
+  for (const message of messages) {
+    const row = document.createElement('div');
+    row.className = 'chat-message';
+    const meta = document.createElement('div');
+    meta.className = 'chat-meta';
+    meta.textContent = `${message.name} · ${message.seat}号位 · ${new Date(message.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const body = document.createElement('div');
+    body.textContent = message.text;
+    row.append(meta, body);
+    list.appendChild(row);
+  }
+  if (nearBottom) list.scrollTop = list.scrollHeight;
+  $('chat-toggle').textContent = `💬 房间聊天${chatUnread ? ` (${chatUnread})` : ''}`;
+}
+socket.on('chatHistory', renderChat);
+$('chat-toggle').addEventListener('click', () => {
+  chatOpen = !chatOpen;
+  $('chat-body').classList.toggle('hidden', !chatOpen);
+  $('chat-toggle').setAttribute('aria-expanded', String(chatOpen));
+  chatUnread = 0;
+  $('chat-toggle').textContent = '💬 房间聊天';
+  if (chatOpen) $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+});
+$('chat-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const button = $('chat-send');
+  button.disabled = true;
+  socket.timeout(5000).emit('chat', { text }, (err, ack) => {
+    button.disabled = false;
+    if (err) return toast('发送超时，请检查连接');
+    if (!ack || !ack.ok) return toast(ack?.message || '发送失败');
+    if (input.value.trim() === text) input.value = '';
+  });
+});
 
 socket.on('connect', () => {
   if (S.joined && S.room) {

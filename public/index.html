@@ -79,6 +79,17 @@
     </section>
   </div>
 
+  <aside id="chat-panel" class="chat-panel hidden">
+    <button id="chat-toggle" class="btn chat-toggle" aria-expanded="false" aria-controls="chat-body">💬 房间聊天</button>
+    <div id="chat-body" class="hidden">
+      <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" maxlength="200" placeholder="说点什么…（最多200字）" aria-label="聊天消息" autocomplete="off" />
+        <button id="chat-send" class="btn btn-primary" type="submit">发送</button>
+      </form>
+    </div>
+  </aside>
+
   <!-- 遮罩弹窗 -->
   <div id="overlay" class="overlay hidden">
     <div class="modal" id="modal"></div>
