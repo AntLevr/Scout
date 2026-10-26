@@ -105,7 +105,8 @@ html, body {
 }
 .topbar-left, .topbar-right { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .room-tag b { color: var(--gold); }
-.topbar-center { font-weight: 700; font-size: 14px; background: rgba(0,0,0,0.25); padding: 6px 14px; border-radius: 20px; }
+.topbar-center { font-weight: 700; font-size: 14px; background: rgba(0,0,0,0.25); padding: 6px 14px; border-radius: 20px; transition: background 0.2s, color 0.2s; }
+#turn-hint.turn-flash { background: var(--gold); color: #5b3a00; }
 
 /* ---------------- 对手区 ---------------- */
 .opponents { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 12px; }

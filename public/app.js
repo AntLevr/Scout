@@ -718,8 +718,19 @@ function playSfx(type) {
     } else if (type === 'score') {
       tone(523.25, t, 0.1, 'sine', 0.22);
       tone(783.99, t + 0.09, 0.18, 'sine', 0.22);
+    } else if (type === 'turn') {
+      tone(659.25, t, 0.1, 'sine', 0.26);
+      tone(880, t + 0.09, 0.16, 'sine', 0.22);
     }
   } catch (e) {}
+}
+
+function notifyMyTurn() {
+  playSfx('turn');
+  const el = $('turn-hint');
+  el.classList.add('turn-flash');
+  clearTimeout(el._flashTimer);
+  el._flashTimer = setTimeout(() => el.classList.remove('turn-flash'), 1800);
 }
 
 /* ---------------- 手牌自适应（移动端全部显示、无需滚动） ---------------- */
@@ -761,6 +772,8 @@ function toggleFullscreen() {
 /* ---------------- Socket 事件 ---------------- */
 
 socket.on('state', (data) => {
+  const prevIdx = S.room ? S.room.currentIdx : -1;
+  const prevPhase = S.room ? S.room.phase : null;
   S.room = data.public;
   S.me = data.private;
 
@@ -772,6 +785,12 @@ socket.on('state', (data) => {
       S.lastEventSeq = ev.seq;
       if (ev.targetIdx === S.me.yourIdx) playSfx(ev.type);
     }
+  }
+
+  // 轮到自己行动时提醒（提示音 + 高亮）
+  if (S.room.phase === 'playing' && S.room.currentIdx === S.me.yourIdx
+      && (prevIdx !== S.room.currentIdx || prevPhase !== 'playing')) {
+    notifyMyTurn();
   }
 
   // 阶段切换时重置选中与侦察状态

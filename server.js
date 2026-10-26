@@ -420,9 +420,16 @@ function doScout(room, playerIdx, opts) {
 
   if (scoutShow && !p.scoutShowUsed && room.players.length !== 2) {
     p.scoutShowUsed = true;
-    room.mustShow = true; // 该玩家必须立即表演
-    // 回合不推进
-    return { ok: true, scoutShowTriggered: true };
+    // 侦察后能否表演：无当前表演则单张即可；有表演则需能压过
+    const canShow = (room.currentShow === null) || canBeatCurrentShow(room, playerIdx);
+    if (canShow) {
+      room.mustShow = true; // 该玩家必须立即表演
+      return { ok: true, scoutShowTriggered: true };
+    }
+    // 侦察后仍无法表演：退还 token，按普通侦察结束回合
+    p.scoutShowUsed = false;
+    nextTurn(room);
+    return { ok: true };
   }
 
   if (room.players.length === 2) {
