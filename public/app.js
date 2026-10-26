@@ -567,7 +567,9 @@ function confirmScout(insertIndex) {
 function cancelScout() {
   S.scout = null;
   renderTable(S.room);
+  renderHand(S.room, S.me);
   renderActions(S.room, S.me);
+  renderInsertMarks();
   $('action-hint').textContent = '选择要打出的牌，或点击「侦察」挖角。';
 }
 
