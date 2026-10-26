@@ -1,0 +1,11 @@
+node_modules
+.npm-cache
+.git
+.gitignore
+*.log
+test-sim.js
+Dockerfile
+render.yaml
+Procfile
+README.md
+start.bat

@@ -1,0 +1,16 @@
+{
+  "name": "scout-online",
+  "version": "1.0.0",
+  "description": "线上联机版《马戏星探》Scout - 桌游卡牌对战",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

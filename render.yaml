@@ -1,0 +1,14 @@
+# Render Blueprint 配置文件
+# 用法：把仓库推到 GitHub，然后在 Render 控制台点 "New + Blueprint" 选择本仓库即可。
+services:
+  - type: web
+    name: scout-online
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production

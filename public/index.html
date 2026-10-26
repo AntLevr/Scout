@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>马戏星探 Scout · 线上联机</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ============ 大厅 ============ -->
+    <section id="lobby" class="screen">
+      <div class="lobby-card">
+        <div class="logo">
+          <div class="logo-star">★</div>
+          <h1>马戏星探</h1>
+          <div class="logo-sub">SCOUT · 线上联机版</div>
+        </div>
+
+        <div id="lobby-form" class="lobby-form">
+          <label class="field">
+            <span>你的昵称</span>
+            <input id="name-input" maxlength="12" placeholder="输入昵称" />
+          </label>
+          <button id="btn-create" class="btn btn-primary btn-block">创建房间</button>
+          <div class="divider"><span>或加入好友房间</span></div>
+          <div class="join-row">
+            <input id="code-input" maxlength="4" placeholder="房间码" class="code-input" />
+            <button id="btn-join" class="btn btn-outline">加入</button>
+          </div>
+        </div>
+
+        <div id="room-panel" class="room-panel hidden">
+          <div class="room-code">
+            房间码
+            <div class="code-value" id="room-code-value">----</div>
+            <button id="btn-copy" class="btn btn-mini">复制</button>
+          </div>
+          <div class="player-list" id="lobby-players"></div>
+          <div class="lobby-tip" id="lobby-tip">等待玩家加入（3–5 人）…</div>
+          <button id="btn-start" class="btn btn-primary btn-block hidden">开始游戏</button>
+          <button id="btn-leave" class="btn btn-ghost btn-block">离开房间</button>
+        </div>
+      </div>
+      <button id="btn-rules" class="btn btn-ghost btn-rules">📖 游戏规则</button>
+    </section>
+
+    <!-- ============ 游戏 ============ -->
+    <section id="game" class="screen hidden">
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="room-tag">房间 <b id="g-code"></b></span>
+          <span class="round-tag">第 <b id="g-round"></b> / <span id="g-total"></span> 轮</span>
+        </div>
+        <div class="topbar-center" id="turn-hint">准备中…</div>
+        <div class="topbar-right">
+          <button id="btn-rules2" class="btn btn-ghost btn-mini">规则</button>
+        </div>
+      </header>
+
+      <div id="opponents" class="opponents"></div>
+
+      <div id="table" class="table"></div>
+
+      <div id="myarea" class="myarea">
+        <div class="my-stats">
+          <div class="stat">🎪 得分牌 <b id="my-captured">0</b></div>
+          <div class="stat">🪙 筹码 <b id="my-chips">0</b></div>
+          <div class="stat">📈 总分 <b id="my-total">0</b></div>
+          <div class="stat" id="my-ss-token">✨ 侦察+表演</div>
+        </div>
+        <div id="hand" class="hand"></div>
+        <div id="actions" class="actions"></div>
+        <div class="hint" id="action-hint"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 遮罩弹窗 -->
+  <div id="overlay" class="overlay hidden">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
