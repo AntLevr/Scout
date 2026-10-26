@@ -111,7 +111,6 @@ function newRoom(code) {
     chat: [],
     logs: [],
     results: [],
-    settings: { hostOnly: true },
   };
 }
 
@@ -224,7 +223,6 @@ function publicState(room) {
         }
       : null,
     lastRound: room.lastRound,
-    settings: room.settings,
     results: room.results,
   };
 }
@@ -494,24 +492,16 @@ io.on('connection', (socket) => {
   let joinedRoom = null;
   let joinedIdx = -1;
   const sendHistory = (room) => socket.emit('history', { chat: room.chat, logs: room.logs });
-  const canControl = (room, p) => p && (!room.settings.hostOnly || p.id === room.hostId);
-
-  socket.on('settings', (payload, ack) => {
-    const room = joinedRoom;
-    const p = room && playerBySocket(room, socket.id);
-    if (!p || p.id !== room.hostId || room.phase !== 'lobby') return ack?.({ ok: false, message: '仅房主可在大厅修改设置' });
-    if (typeof payload?.hostOnly === 'boolean') room.settings.hostOnly = payload.hostOnly;
-    ack?.({ ok: true });
-    broadcast(room);
-  });
+  const canControl = (room, p) => p && p.id === room.hostId;
+  const guestsReady = (room) => room.players.every((p) => p.connected && (p.id === room.hostId || p.ready));
 
   socket.on('ready', (payload, ack) => {
     const room = joinedRoom;
     const p = room && playerBySocket(room, socket.id);
     if (!p || !['lobby', 'roundEnd', 'gameEnd'].includes(room.phase) || room.abandoned) return ack?.({ ok: false, message: '当前无法准备' });
+    if (p.id === room.hostId) return ack?.({ ok: false, message: '房主无需准备' });
     p.ready = !p.ready;
     ack?.({ ok: true });
-    if (room.phase === 'roundEnd' && room.players.every((x) => x.ready && x.connected)) startRound(room);
     broadcast(room);
   });
 
@@ -608,7 +598,7 @@ io.on('connection', (socket) => {
     if (!p) return;
     if (room.phase !== 'lobby') return;
     if (!canControl(room, p)) return ack?.({ ok: false, message: '仅房主可开始游戏' });
-    if (!room.players.every((x) => x.ready && x.connected)) return ack?.({ ok: false, message: '请等待所有玩家准备并上线' });
+    if (!guestsReady(room)) return ack?.({ ok: false, message: '请等待所有玩家准备并上线' });
     const n = room.players.length;
     if (n < 2) {
       if (typeof ack === 'function') ack({ ok: false, message: '至少需要 2 名玩家' });
@@ -720,7 +710,8 @@ io.on('connection', (socket) => {
       return;
     }
     if (room.phase !== 'roundEnd') return;
-    if (!room.players.every((x) => x.ready && x.connected)) return ack?.({ ok: false, message: '等待全员准备' });
+    if (!canControl(room, p)) return ack?.({ ok: false, message: '仅房主可开始下一轮' });
+    if (!guestsReady(room)) return ack?.({ ok: false, message: '等待全员准备' });
     startRound(room);
     if (typeof ack === 'function') ack({ ok: true });
     broadcast(room);
@@ -734,7 +725,7 @@ io.on('connection', (socket) => {
     if (room.phase !== 'gameEnd') return;
     if (room.abandoned || room.players.length < 2) return;
     if (!canControl(room, p)) return ack?.({ ok: false, message: '仅房主可再来一局' });
-    if (!room.players.every((x) => x.ready && x.connected)) return ack?.({ ok: false, message: '等待全员准备' });
+    if (!guestsReady(room)) return ack?.({ ok: false, message: '等待全员准备' });
     room.round = 0;
     room.results = [];
     room.players.forEach((x) => (x.totalScore = 0));

@@ -153,6 +153,8 @@ test('scout highlights edges and flips the enlarged source without a duplicate p
   vm.runInContext("S.scout.step = 'insert'; S.scout.edge = 'left'; S.scout.card = {a:3,b:7}; S.scout.up = 'a'; renderTable(S.room); renderActions(S.room,S.me)", ctx);
   cards = elements.get('table').children[0].children[1].children;
   assert(cards[0].className.includes('scout-chosen'));
+  assert(cards[1].className.includes('scout-unavailable'));
+  assert(cards[2].className.includes('scout-unavailable'));
   assert.equal(cards[0].dataset.value, 3);
   assert.equal(elements.get('actions').children.some((e) => e.className?.startsWith('card')), false);
   vm.runInContext('flipScoutCard()', ctx);
@@ -164,4 +166,29 @@ test('scout highlights edges and flips the enlarged source without a duplicate p
   cards = elements.get('table').children[0].children[1].children;
   assert.equal(cards[0].dataset.value, 3);
   assert.equal(cards[0].className.includes('scout-chosen'), false);
+});
+
+test('host has no ready button; guest readiness controls start and button colors', () => {
+  const { ctx, elements, handlers, data } = setup();
+  const state = data(); state.public.phase = 'lobby';
+  vm.runInContext('S.joined = true', ctx);
+  handlers.state(state);
+  assert.equal(elements.has('host-only'), false);
+  assert.equal(elements.get('btn-ready').classList.contains('hidden'), true);
+  assert.equal(elements.get('btn-start').disabled, true);
+  state.public.players[1].ready = true; state.public.players[2].ready = true;
+  handlers.state(state);
+  assert.equal(elements.get('btn-start').disabled, false);
+  state.private.yourIdx = 1; state.public.players[1].ready = false;
+  handlers.state(state);
+  assert.equal(elements.get('btn-ready').classList.contains('hidden'), false);
+  assert.equal(elements.get('btn-ready').classList.contains('btn-gold'), true);
+  state.public.players[1].ready = true; handlers.state(state);
+  assert.equal(elements.get('btn-ready').classList.contains('btn-primary'), true);
+  assert.equal(elements.get('btn-ready').classList.contains('btn-gold'), false);
+  state.public.phase = 'gameEnd'; handlers.state(state);
+  assert(elements.get('modal').innerHTML.includes('class="btn btn-primary" id="btn-rematch-ready"'));
+  state.private.yourIdx = 0; handlers.state(state);
+  assert(!elements.get('modal').innerHTML.includes('id="btn-rematch-ready"'));
+  assert.equal(elements.get('btn-rematch').disabled, false);
 });

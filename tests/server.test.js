@@ -50,14 +50,14 @@ function setup() {
   return { a, b, client, room, context, joined, start };
 }
 
-test('host permissions, settings and all-player preparation', () => {
+test('only host can start and host never needs to ready', () => {
   const { a, b, room } = setup();
   assert.equal(a.action('startGame').ok, false);
-  assert.equal(b.action('settings', { hostOnly: false }).ok, false);
-  a.action('ready'); b.action('ready');
+  assert.equal(a.action('ready').ok, false);
+  b.action('ready');
   assert.equal(b.action('startGame').ok, false);
-  assert.equal(a.action('settings', { hostOnly: false }).ok, true);
-  assert.equal(b.action('startGame').ok, true);
+  assert.equal(room().players[0].ready, false);
+  assert.equal(a.action('startGame').ok, true);
   assert.equal(room().phase, 'orient');
 });
 
@@ -113,7 +113,10 @@ test('complete game: scoring, round readiness, results and rematch reset', () =>
   assert.equal(room().results.length, 1);
   assert.equal(a.action('nextRound').ok, false);
   a.action('ready'); assert.equal(room().round, 1);
-  b.action('ready'); assert.equal(room().round, 2);
+  b.action('ready'); assert.equal(room().round, 1);
+  assert.equal(b.action('nextRound').ok, false);
+  assert.equal(a.action('nextRound').ok, true);
+  assert.equal(room().round, 2);
   assert.equal(room().players.every((p) => !p.ready), true);
   finishRound(); assert.equal(room().phase, 'gameEnd');
   assert.equal(room().results.length, 2);
