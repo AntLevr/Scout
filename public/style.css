@@ -211,11 +211,17 @@ html, body {
 }
 
 @media (max-width: 560px) {
-  .card { width: 60px; height: 86px; }
-  .card .v-main { font-size: 30px; top: 3px; left: 5px; }
-  .card .v-main.d2 { font-size: 25px; top: 5px; }
-  .card .v-sub { font-size: 13px; bottom: 3px; right: 5px; }
-  .hand { gap: 3px; min-height: 96px; padding: 4px 0; }
+  .card { width: 58px; height: 82px; }
+  .card .v-main { font-size: 26px; top: 4px; left: 5px; }
+  .card .v-main.d2 { font-size: 21px; top: 6px; }
+  .card .v-sub { font-size: 12px; bottom: 4px; right: 5px; }
+
+  /* 手牌叠放（扇形）：右边牌叠在左边牌上，只露左上角数字 */
+  .hand { justify-content: center; gap: 0; min-height: 96px; padding: 4px 0; }
+  .hand .card { margin-left: -26px; }
+  .hand .card:first-child { margin-left: 0; }
+  .hand .card:last-child { margin-right: 0; }
+  .card.selected { transform: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.75); }
 
   .topbar { flex-wrap: wrap; gap: 4px 10px; padding: 6px 10px; }
   .topbar-center { order: 3; width: 100%; text-align: center; font-size: 13px; }

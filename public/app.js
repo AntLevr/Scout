@@ -723,6 +723,7 @@ function playSfx(type) {
 
 /* ---------------- 手牌自适应（移动端全部显示、无需滚动） ---------------- */
 function fitHand() {
+  if (window.innerWidth <= 560) { return; } // 移动端用叠牌布局，无需缩放
   const hand = $('hand');
   const n = hand.children.length;
   if (!n) { hand.style.removeProperty('--cw'); return; }
