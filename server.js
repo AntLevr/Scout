@@ -123,6 +123,12 @@ function playerById(room, pid) {
   return room.players.find((p) => p.id === pid);
 }
 
+// 根据当前 socket 动态查找玩家索引（避免玩家离开后索引失真）
+function playerIndexBySocket(room, socketId) {
+  const p = playerBySocket(room, socketId);
+  return p ? room.players.indexOf(p) : -1;
+}
+
 const DEAL_SIZE = { 2: 11, 3: 15, 4: 11, 5: 9 };
 
 function startRound(room) {
@@ -530,7 +536,7 @@ io.on('connection', (socket) => {
   socket.on('flipHand', () => {
     const room = joinedRoom;
     if (!room) return;
-    const idx = joinedIdx;
+    const idx = playerIndexBySocket(room, socket.id);
     if (room.phase !== 'orient') return;
     const p = room.players[idx];
     p.hand.forEach((c) => {
@@ -542,7 +548,7 @@ io.on('connection', (socket) => {
   socket.on('confirmHand', () => {
     const room = joinedRoom;
     if (!room) return;
-    const idx = joinedIdx;
+    const idx = playerIndexBySocket(room, socket.id);
     if (room.phase !== 'orient') return;
     room.players[idx].confirmed = true;
     if (room.players.every((p) => p.confirmed)) {
@@ -556,7 +562,7 @@ io.on('connection', (socket) => {
   socket.on('show', (payload, ack) => {
     const room = joinedRoom;
     if (!room) return;
-    const idx = joinedIdx;
+    const idx = playerIndexBySocket(room, socket.id);
     if (room.phase !== 'playing') return;
     if (room.currentIdx !== idx) {
       if (typeof ack === 'function') ack({ ok: false, message: '还没轮到你' });
@@ -575,7 +581,7 @@ io.on('connection', (socket) => {
   socket.on('scoutPreview', (payload, ack) => {
     const room = joinedRoom;
     if (!room) return;
-    const idx = joinedIdx;
+    const idx = playerIndexBySocket(room, socket.id);
     if (room.phase !== 'playing' || room.currentIdx !== idx) return;
     const r = scoutPreview(room, idx, payload && payload.edge);
     if (typeof ack === 'function') ack(r);
@@ -584,7 +590,7 @@ io.on('connection', (socket) => {
   socket.on('scout', (payload, ack) => {
     const room = joinedRoom;
     if (!room) return;
-    const idx = joinedIdx;
+    const idx = playerIndexBySocket(room, socket.id);
     if (room.phase !== 'playing') return;
     if (room.currentIdx !== idx) {
       if (typeof ack === 'function') ack({ ok: false, message: '还没轮到你' });
