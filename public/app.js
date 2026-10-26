@@ -732,7 +732,7 @@ function renderRoundEndModal(room) {
     </table>
     ${renderReadiness(room)}
     ${renderResults(room)}
-    <div class="modal-actions"><button class="btn btn-gold" id="btn-next-round">${room.players[S.me.yourIdx].ready ? '取消准备' : '准备下一轮'}</button></div>`);
+    <div class="modal-actions"><button class="btn ${room.players[S.me.yourIdx].ready ? 'btn-primary' : 'btn-gold'}" id="btn-next-round">${room.players[S.me.yourIdx].ready ? '取消准备' : '准备下一轮'}</button></div>`);
   $('btn-next-round').disabled = !isOnline();
   $('btn-next-round').addEventListener('click', toggleReady);
 }
