@@ -157,7 +157,8 @@ test('scout highlights edges and flips the enlarged source without a duplicate p
   assert(cards[2].className.includes('scout-unavailable'));
   assert.equal(cards[0].dataset.value, 3);
   assert.equal(elements.get('actions').children.some((e) => e.className?.startsWith('card')), false);
-  vm.runInContext('flipScoutCard()', ctx);
+  assert.equal(elements.get('actions').children.some((e) => e.textContent.includes('翻转')), false);
+  cards[0].events.click();
   cards = elements.get('table').children[0].children[1].children;
   assert.equal(cards[0].dataset.value, 7);
   assert.equal(cards[0].dataset.other, 3);

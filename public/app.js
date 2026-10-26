@@ -554,13 +554,6 @@ function renderActions(room, me) {
       cancelBtn.addEventListener('click', cancelScout);
       actions.appendChild(cancelBtn);
     } else if (S.scout.step === 'insert') {
-      // 翻转朝向
-      const flipBtn = document.createElement('button');
-      flipBtn.className = 'btn btn-gold';
-      flipBtn.textContent = '🔄 翻转';
-      flipBtn.addEventListener('click', flipScoutCard);
-      actions.appendChild(flipBtn);
-
       // 取消
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'btn btn-ghost';
@@ -658,7 +651,7 @@ function pickScoutEdge(edge) {
     renderHand(S.room, S.me);
     renderActions(S.room, S.me);
     renderInsertMarks();
-    $('action-hint').textContent = '点击手牌上方的「▼」插入；点「翻转」换朝向。';
+    $('action-hint').textContent = '点击手牌上方的「▼」插入；点击选中的牌翻转朝向。';
   });
 }
 
