@@ -95,12 +95,16 @@ test('long press previews full card, suppresses selection, and cancels on releas
   const { ctx, elements, handlers, data, timers, documentEvents } = setup();
   handlers.state(data());
   const hand = elements.get('hand'), card = hand.children[0], preview = elements.get('card-preview');
+  card.getBoundingClientRect = () => ({ left: 80, top: 400, width: 58, height: 82 });
   const event = { isPrimary: true, button: 0, pointerId: 1, clientX: 10, clientY: 10, target: { closest: () => card } };
   hand.events.pointerdown(event);
   timers.get(vm.runInContext('cardHold.timer', ctx))();
   assert.equal(preview.classList.contains('hidden'), false);
   assert.equal(preview.children[0].dataset.value, 1);
   assert.equal(preview.children[0].dataset.other, 2);
+  assert.equal(preview.style.width, '58px');
+  assert(Math.abs(parseFloat(preview.style.left) - 75.65) < 0.01);
+  assert(Math.abs(parseFloat(preview.style.top) - 297.7) < 0.01);
   documentEvents.pointerup();
   assert.equal(preview.classList.contains('hidden'), true);
   let suppressed = false;

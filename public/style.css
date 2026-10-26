@@ -11,7 +11,7 @@
 }
 
 .chat-panel { position: fixed; right: 12px; top: 64px; width: min(340px, calc(100vw - 24px)); z-index: 40; background: var(--cream); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
-.chat-panel .chat-toggle { display: block; width: 100%; text-align: left; border-radius: 0; }
+.chat-panel .chat-toggle { display: block; width: 100%; padding: 10px 12px; text-align: left; border-radius: 0; }
 .chat-panel .chat-toggle:active { transform: none; }
 .chat-messages { height: min(280px, 35dvh); overflow-y: auto; padding: 10px 12px; user-select: text; }
 .chat-message { margin-bottom: 10px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -57,11 +57,8 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 
 .screen { flex: 1 0 auto; display: flex; flex-direction: column; min-width: 0; }
 .hidden { display: none !important; }
-.card-preview { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.35); pointer-events: none; }
-.card-preview .card { --cw: min(144px, 45dvh); width: var(--cw); height: calc(var(--cw) * 1.4054); box-shadow: 0 10px 35px rgba(0,0,0,.5); }
-.card-preview .card .v-main { top: calc(var(--cw) * .068); left: calc(var(--cw) * .081); font-size: calc(var(--cw) * .54); }
-.card-preview .card .v-main.d2 { top: calc(var(--cw) * .068); font-size: calc(var(--cw) * .432); }
-.card-preview .card .v-sub { bottom: calc(var(--cw) * .068); right: calc(var(--cw) * .081); font-size: calc(var(--cw) * .243); }
+.card-preview { position: fixed; z-index: 70; transform: scale(1.15); transform-origin: top left; pointer-events: none; }
+.card-preview .card { width: 100%; height: 100%; margin: 0; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
 
 /* ---------------- 通用按钮 ---------------- */
 .btn {

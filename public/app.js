@@ -136,9 +136,17 @@ $('hand').addEventListener('pointerdown', (event) => {
     if (!cardHold) return;
     suppressCardClick = true;
     const preview = $('card-preview');
+    const rect = card.getBoundingClientRect();
+    const width = rect.width * 1.15;
+    const height = rect.height * 1.15;
+    preview.style.width = rect.width + 'px';
+    preview.style.height = rect.height + 'px';
+    preview.style.setProperty('--cw', rect.width + 'px');
+    preview.style.left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + (rect.width - width) / 2)) + 'px';
+    preview.style.top = Math.max(8, Math.min(window.innerHeight - height - 8, rect.top - height - 8)) + 'px';
     preview.appendChild(cardEl(Number(card.dataset.value), { sub: Number(card.dataset.other) }));
     preview.classList.remove('hidden');
-  }, 300);
+  }, 200);
 });
 document.addEventListener('pointermove', (event) => {
   if (cardHold && event.pointerId === cardHold.id && Math.hypot(event.clientX - cardHold.x, event.clientY - cardHold.y) > 10) closeCardPreview();
@@ -961,7 +969,7 @@ let chatUnread = 0;
 let chatInitialized = false;
 let chatTab = 'chat';
 function updateChatNotice() {
-  $('chat-toggle').textContent = `💬 房间聊天${chatUnread ? ` (${chatUnread})` : ''}`;
+  $('chat-toggle').textContent = `房间 💬${chatUnread ? ` (${chatUnread})` : ''}`;
   $('chat-toggle').classList.toggle('has-unread', chatUnread > 0);
   $('chat-tab').textContent = `聊天${chatUnread ? ` (${chatUnread})` : ''}`;
 }
