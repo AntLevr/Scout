@@ -376,9 +376,18 @@ function renderTable(room) {
   cards.className = 'show-cards';
   show.cards.forEach((c, i) => {
     const isEdge = S.scout && S.scout.step === 'pick' && (i === 0 || i === show.cards.length - 1);
-    const card = cardEl(c.value, { sub: c.other, small: true, idx: i, cls: isEdge ? 'show-edge' : '' });
+    const chosen = S.scout?.step === 'insert' && i === (S.scout.edge === 'right' ? show.cards.length - 1 : 0);
+    const sc = S.scout;
+    const value = chosen ? (sc.up === 'a' ? sc.card.a : sc.card.b) : c.value;
+    const other = chosen ? (sc.up === 'a' ? sc.card.b : sc.card.a) : c.other;
+    const card = cardEl(value, { sub: other, small: true, idx: i,
+      cls: chosen ? 'scout-chosen' : isEdge ? 'show-edge' : sc?.step === 'pick' ? 'scout-unavailable' : '' });
     if (isEdge) {
       card.addEventListener('click', () => pickScoutEdge(i === 0 ? 'left' : 'right'));
+    }
+    if (chosen) {
+      card.title = '已选中，点击翻转朝向';
+      card.addEventListener('click', flipScoutCard);
     }
     cards.appendChild(card);
   });
@@ -552,16 +561,6 @@ function renderActions(room, me) {
       flipBtn.addEventListener('click', flipScoutCard);
       actions.appendChild(flipBtn);
 
-      // 预览卡（当前朝向，点击可翻转）
-      const a = S.scout.card.a, b = S.scout.card.b;
-      const v = S.scout.up === 'a' ? a : b;
-      const other = S.scout.up === 'a' ? b : a;
-      const preview = cardEl(v, { sub: other, small: true });
-      preview.style.cursor = 'pointer';
-      preview.title = '点击翻转朝向';
-      preview.addEventListener('click', flipScoutCard);
-      actions.appendChild(preview);
-
       // 取消
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'btn btn-ghost';
@@ -667,6 +666,7 @@ function pickScoutEdge(edge) {
 function flipScoutCard() {
   if (!S.scout) return;
   S.scout.up = S.scout.up === 'a' ? 'b' : 'a';
+  renderTable(S.room);
   renderActions(S.room, S.me);
 }
 

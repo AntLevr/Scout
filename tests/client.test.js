@@ -138,3 +138,30 @@ test('opponent seating is relative to self and stays stable across turns', () =>
   assert.equal(elements.get('myarea').classList.contains('my-turn'), false);
   assert.equal(vm.runInContext('S.me.yourIdx', ctx), 2);
 });
+
+test('scout highlights edges and flips the enlarged source without a duplicate preview', () => {
+  const { ctx, elements, handlers, data } = setup();
+  const state = data();
+  state.public.currentShow.cards = [{ value: 3, other: 7 }, { value: 3, other: 8 }, { value: 3, other: 9 }];
+  state.public.currentShow.length = 3;
+  handlers.state(state);
+  vm.runInContext('startScout(false)', ctx);
+  let cards = elements.get('table').children[0].children[1].children;
+  assert(cards[0].className.includes('show-edge'));
+  assert(cards[1].className.includes('scout-unavailable'));
+  assert(cards[2].className.includes('show-edge'));
+  vm.runInContext("S.scout.step = 'insert'; S.scout.edge = 'left'; S.scout.card = {a:3,b:7}; S.scout.up = 'a'; renderTable(S.room); renderActions(S.room,S.me)", ctx);
+  cards = elements.get('table').children[0].children[1].children;
+  assert(cards[0].className.includes('scout-chosen'));
+  assert.equal(cards[0].dataset.value, 3);
+  assert.equal(elements.get('actions').children.some((e) => e.className?.startsWith('card')), false);
+  vm.runInContext('flipScoutCard()', ctx);
+  cards = elements.get('table').children[0].children[1].children;
+  assert.equal(cards[0].dataset.value, 7);
+  assert.equal(cards[0].dataset.other, 3);
+  assert.equal(state.public.currentShow.cards[0].value, 3);
+  vm.runInContext('cancelScout()', ctx);
+  cards = elements.get('table').children[0].children[1].children;
+  assert.equal(cards[0].dataset.value, 3);
+  assert.equal(cards[0].className.includes('scout-chosen'), false);
+});
