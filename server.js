@@ -109,6 +109,7 @@ function newRoom(code) {
     eventSeq: 0, // 音效事件序号
     lastEvent: null, // { type: 'show'|'scout'|'score', seq }
     chat: [],
+    logs: [],
   };
 }
 
@@ -132,9 +133,19 @@ function playerIndexBySocket(room, socketId) {
 
 const DEAL_SIZE = { 2: 11, 3: 15, 4: 11, 5: 9 };
 
+function addLog(room, text) {
+  room.logs.push({ id: crypto.randomUUID(), time: Date.now(), text });
+  if (room.logs.length > 200) room.logs.shift();
+}
+
+function playerLabel(room, idx) {
+  return `${room.players[idx].name}（${idx + 1}号位）`;
+}
+
 function startRound(room) {
   const n = room.players.length;
   room.round += 1;
+  addLog(room, `第 ${room.round} 轮开始，${playerLabel(room, room.startPlayerIdx)} 先手，等待确认手牌。`);
   room.totalRounds = n;
   room.phase = 'orient';
   room.currentShow = null;
@@ -208,6 +219,7 @@ function publicState(room) {
       : null,
     lastRound: room.lastRound,
     chat: room.chat,
+    logs: room.logs,
   };
 }
 
@@ -268,6 +280,9 @@ function endRound(room, kind, winnerIdx) {
     winnerIdx,
     detail,
   };
+  const reason = kind === 'wentOut' ? '出完手牌' : kind === 'twoPlayerStuck' ? '对手无法继续表演' : '表演存活一圈';
+  addLog(room, `第 ${room.round} 轮结束：${playerLabel(room, winnerIdx)} ${reason}。`);
+  addLog(room, detail.map((d) => `${d.name}（${d.idx + 1}号位）：本轮 ${d.roundScore}，总分 ${d.totalScore}`).join('；'));
 
   const n = room.players.length;
   room.startPlayerIdx = (room.startPlayerIdx + 1) % n; // 下一轮换起始玩家
@@ -362,6 +377,7 @@ function doShow(room, playerIdx, indices) {
   };
   room.mustShow = false;
   room.lastEvent = { type: 'show', seq: ++room.eventSeq, targetIdx: playerIdx };
+  addLog(room, `${playerLabel(room, playerIdx)} 表演：${values.join('、')}（${cls.type === 'set' ? '同数' : '顺子'}，${cards.length} 张）。`);
 
   if (p.hand.length === 0) {
     endRound(room, 'wentOut', playerIdx);
@@ -387,6 +403,7 @@ function doScout(room, playerIdx, opts) {
   }
 
   const edge = opts.edge === 'right' ? 'right' : 'left';
+  const owner = playerLabel(room, room.currentShow.ownerIdx);
   const card =
     edge === 'left' ? room.currentShow.cards.shift() : room.currentShow.cards.pop();
 
@@ -397,6 +414,7 @@ function doScout(room, playerIdx, opts) {
   let insertIndex = Number.isInteger(opts.insertIndex) ? opts.insertIndex : p.hand.length;
   insertIndex = Math.max(0, Math.min(p.hand.length, insertIndex));
   p.hand.splice(insertIndex, 0, card);
+  addLog(room, `${playerLabel(room, playerIdx)} 从 ${owner} 的表演${edge === 'left' ? '左' : '右'}侧挖角，${owner} 获得 1 筹码。`);
 
   // 表演主人（被挖角者）获得 1 个筹码（= 1 分，所有人数通用）
   room.players[room.currentShow.ownerIdx].chips += 1;
@@ -425,6 +443,7 @@ function doScout(room, playerIdx, opts) {
     // 挖角后能否表演：无当前表演则单张即可；有表演则需能压过
     const canShow = (room.currentShow === null) || canBeatCurrentShow(room, playerIdx);
     if (canShow) {
+      addLog(room, `${playerLabel(room, playerIdx)} 使用「挖角+表演」，继续表演。`);
       room.mustShow = true; // 该玩家必须立即表演
       return { ok: true, scoutShowTriggered: true };
     }
@@ -588,6 +607,7 @@ io.on('connection', (socket) => {
       room.phase = 'playing';
       room.currentIdx = room.startPlayerIdx;
       room.mustShow = true;
+      addLog(room, '所有玩家已确认手牌，开始行动。');
     }
     broadcast(room);
   });
@@ -696,6 +716,7 @@ io.on('connection', (socket) => {
     if (room.hostId === p.id) room.hostId = room.players[0].id;
 
     if (wasInGame) {
+      addLog(room, `${p.name} 退出房间，本局结束。`);
       // 对局中主动退出：结束本局，剩余玩家进入结算
       room.phase = 'gameEnd';
       room.lastRound = null;

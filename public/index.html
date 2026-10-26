@@ -82,11 +82,18 @@
   <aside id="chat-panel" class="chat-panel hidden">
     <button id="chat-toggle" class="btn chat-toggle" aria-expanded="false" aria-controls="chat-body">💬 房间聊天</button>
     <div id="chat-body" class="hidden">
+      <div class="chat-tabs" role="tablist" aria-label="房间消息">
+        <button id="chat-tab" role="tab" aria-selected="true" aria-controls="chat-conversation">聊天</button>
+        <button id="logs-tab" role="tab" aria-selected="false" aria-controls="game-logs" tabindex="-1">游戏记录</button>
+      </div>
+      <div id="chat-conversation" role="tabpanel" aria-labelledby="chat-tab">
       <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
       <form id="chat-form" class="chat-form">
         <input id="chat-input" maxlength="200" placeholder="说点什么…（最多200字）" aria-label="聊天消息" autocomplete="off" />
         <button id="chat-send" class="btn btn-primary" type="submit">发送</button>
       </form>
+      </div>
+      <div id="game-logs" class="chat-messages hidden" role="tabpanel" aria-labelledby="logs-tab" tabindex="0"></div>
     </div>
   </aside>
 

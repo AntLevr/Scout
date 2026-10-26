@@ -19,6 +19,13 @@
 .chat-form input { flex: 1; min-width: 0; width: 0; border: 1px solid #d9c9a6; border-radius: 8px; padding: 8px; font-size: 16px; }
 .chat-form .btn { padding: 8px 12px; }
 .chat-panel:has(#chat-body.hidden) { width: auto; }
+.chat-toggle { touch-action: none; user-select: none; }
+.chat-toggle.dragging { cursor: grabbing; background: #a82626; }
+.chat-toggle.has-unread { background: #a82626; box-shadow: inset 0 0 0 3px var(--gold); }
+.chat-toggle.has-unread::after { content: ''; display: inline-block; width: 9px; height: 9px; margin-left: 8px; border-radius: 50%; background: var(--gold); }
+.chat-tabs { display: flex; border-bottom: 1px solid #e6d5b0; }
+.chat-tabs button { flex: 1; padding: 10px; border: 0; background: transparent; color: #7a5c3a; font-weight: 700; cursor: pointer; }
+.chat-tabs button[aria-selected="true"] { color: var(--red-dark); box-shadow: inset 0 -3px var(--red); }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 

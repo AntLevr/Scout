@@ -775,7 +775,9 @@ function toggleFullscreen() {
 
 socket.on('state', (data) => {
   $('chat-panel').classList.remove('hidden');
+  requestAnimationFrame(clampChatPosition);
   renderChat(data.public.chat || []);
+  renderLogs(data.public.logs || []);
   const prevIdx = S.room ? S.room.currentIdx : -1;
   const prevPhase = S.room ? S.room.phase : null;
   S.room = data.public;
@@ -808,14 +810,24 @@ socket.on('error', (data) => toast(data.message));
 let chatOpen = false;
 let chatLastId = null;
 let chatUnread = 0;
+let chatInitialized = false;
+let chatTab = 'chat';
+function updateChatNotice() {
+  $('chat-toggle').textContent = `💬 房间聊天${chatUnread ? ` (${chatUnread})` : ''}`;
+  $('chat-toggle').classList.toggle('has-unread', chatUnread > 0);
+  $('chat-tab').textContent = `聊天${chatUnread ? ` (${chatUnread})` : ''}`;
+}
 function renderChat(messages) {
   const list = $('chat-messages');
   const lastId = messages.length ? messages[messages.length - 1].id : null;
+  const initialized = chatInitialized;
+  chatInitialized = true;
   if (lastId === chatLastId) return;
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
-  if (!chatOpen && chatLastId) {
+  if (initialized && (!chatOpen || chatTab !== 'chat' || document.hidden)) {
     const previous = messages.findIndex((m) => m.id === chatLastId);
     chatUnread += previous < 0 ? messages.length : messages.length - previous - 1;
+    if (chatUnread) toast('💬 房间有新聊天消息');
   }
   chatLastId = lastId;
   list.replaceChildren();
@@ -831,17 +843,117 @@ function renderChat(messages) {
     list.appendChild(row);
   }
   if (nearBottom) list.scrollTop = list.scrollHeight;
-  $('chat-toggle').textContent = `💬 房间聊天${chatUnread ? ` (${chatUnread})` : ''}`;
+  updateChatNotice();
 }
+function renderLogs(logs) {
+  const list = $('game-logs');
+  const lastId = logs.length ? logs[logs.length - 1].id : '';
+  if (list.dataset.lastId === lastId) return;
+  list.dataset.lastId = lastId;
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+  list.replaceChildren();
+  for (const log of logs) {
+    const row = document.createElement('div');
+    row.className = 'chat-message';
+    row.textContent = `${new Date(log.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}  ${log.text}`;
+    list.appendChild(row);
+  }
+  if (nearBottom) list.scrollTop = list.scrollHeight;
+}
+function selectChatTab(tab) {
+  chatTab = tab;
+  $('chat-conversation').classList.toggle('hidden', tab !== 'chat');
+  $('game-logs').classList.toggle('hidden', tab !== 'logs');
+  for (const name of ['chat', 'logs']) {
+    $(name + '-tab').setAttribute('aria-selected', String(name === tab));
+    $(name + '-tab').tabIndex = name === tab ? 0 : -1;
+  }
+  if (tab === 'chat' && chatOpen && !document.hidden) chatUnread = 0;
+  updateChatNotice();
+  const list = $(tab === 'chat' ? 'chat-messages' : 'game-logs');
+  list.scrollTop = list.scrollHeight;
+  requestAnimationFrame(clampChatPosition);
+}
+$('chat-tab').addEventListener('click', () => selectChatTab('chat'));
+$('logs-tab').addEventListener('click', () => selectChatTab('logs'));
+for (const name of ['chat', 'logs']) {
+  $(name + '-tab').addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const tab = event.key === 'Home' ? 'chat' : event.key === 'End' ? 'logs' : chatTab === 'chat' ? 'logs' : 'chat';
+    selectChatTab(tab);
+    $(tab + '-tab').focus();
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && chatOpen && chatTab === 'chat') { chatUnread = 0; updateChatNotice(); }
+});
 socket.on('chatHistory', renderChat);
-$('chat-toggle').addEventListener('click', () => {
+$('chat-toggle').addEventListener('click', (event) => {
+  if (suppressChatClick) { event.preventDefault(); return; }
   chatOpen = !chatOpen;
   $('chat-body').classList.toggle('hidden', !chatOpen);
   $('chat-toggle').setAttribute('aria-expanded', String(chatOpen));
-  chatUnread = 0;
-  $('chat-toggle').textContent = '💬 房间聊天';
-  if (chatOpen) $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+  if (chatOpen) selectChatTab(chatTab);
+  requestAnimationFrame(clampChatPosition);
 });
+
+// 长按 450ms 后拖动；保存相对位置，窗口变化时限制在可见范围内。
+let chatDrag = null;
+let suppressChatClick = false;
+let chatPosition = null;
+try { chatPosition = JSON.parse(localStorage.getItem('scout-chat-position')); } catch (_) {}
+function clampChatPosition() {
+  const panel = $('chat-panel');
+  if (panel.classList.contains('hidden')) return;
+  const rect = panel.getBoundingClientRect();
+  const maxX = Math.max(8, window.innerWidth - rect.width - 8);
+  const maxY = Math.max(8, window.innerHeight - rect.height - 8);
+  const saved = chatPosition && Number.isFinite(chatPosition.x) && Number.isFinite(chatPosition.y);
+  const x = Math.max(8, Math.min(maxX, saved ? chatPosition.x * window.innerWidth : rect.left));
+  const y = Math.max(8, Math.min(maxY, saved ? chatPosition.y * window.innerHeight : rect.top));
+  panel.style.left = x + 'px'; panel.style.top = y + 'px'; panel.style.right = 'auto';
+}
+const chatHandle = $('chat-toggle');
+chatHandle.title = '点击展开/收起，长按拖动位置';
+chatHandle.addEventListener('pointerdown', (event) => {
+  if (!event.isPrimary || event.button !== 0) return;
+  suppressChatClick = false;
+  const rect = $('chat-panel').getBoundingClientRect();
+  chatDrag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, active: false };
+  chatHandle.setPointerCapture(event.pointerId);
+  chatDrag.timer = setTimeout(() => {
+    if (!chatDrag) return;
+    chatDrag.active = true; suppressChatClick = true;
+    chatHandle.classList.add('dragging');
+  }, 450);
+});
+chatHandle.addEventListener('pointermove', (event) => {
+  if (!chatDrag || event.pointerId !== chatDrag.id) return;
+  const dx = event.clientX - chatDrag.x, dy = event.clientY - chatDrag.y;
+  if (!chatDrag.active) {
+    if (Math.hypot(dx, dy) > 8) { clearTimeout(chatDrag.timer); suppressChatClick = true; }
+    return;
+  }
+  chatPosition = { x: (chatDrag.left + dx) / window.innerWidth, y: (chatDrag.top + dy) / window.innerHeight };
+  clampChatPosition();
+});
+function endChatDrag() {
+  if (!chatDrag) return;
+  clearTimeout(chatDrag.timer);
+  if (chatDrag.active) {
+    const rect = $('chat-panel').getBoundingClientRect();
+    chatPosition = { x: rect.left / window.innerWidth, y: rect.top / window.innerHeight };
+    try { localStorage.setItem('scout-chat-position', JSON.stringify(chatPosition)); } catch (_) {}
+  }
+  chatDrag = null;
+  chatHandle.classList.remove('dragging');
+}
+chatHandle.addEventListener('pointerup', endChatDrag);
+chatHandle.addEventListener('pointercancel', endChatDrag);
+chatHandle.addEventListener('lostpointercapture', endChatDrag);
+chatHandle.addEventListener('contextmenu', (event) => event.preventDefault());
+window.addEventListener('resize', clampChatPosition);
 $('chat-form').addEventListener('submit', (event) => {
   event.preventDefault();
   const input = $('chat-input');
