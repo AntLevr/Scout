@@ -60,8 +60,8 @@ const TYPE_CN = { set: '同数', run: '顺子' };
 
 // 每个数字一种颜色（用于牌的两半着色）
 const NUMBER_COLORS = {
-  1: '#dc2626', 2: '#ea580c', 3: '#ca8a04', 4: '#16a34a', 5: '#0d9488',
-  6: '#2563eb', 7: '#7c3aed', 8: '#db2777', 9: '#9a5b2e', 10: '#64748b',
+  1: '#f0a3a3', 2: '#f4b06a', 3: '#efc94d', 4: '#9ccb77', 5: '#6fc6b0',
+  6: '#7fb2e8', 7: '#a98ed9', 8: '#e091c0', 9: '#d0a678', 10: '#a3b3ca',
 };
 
 function cardEl(value, extra = {}) {
@@ -358,31 +358,26 @@ function renderHand(room, me) {
     const other = c.value === c.a ? c.b : c.a;
     const inSel = sel && i >= sel.a && i <= sel.b;
     const card = cardEl(c.value, { sub: other, idx: i, cls: inSel ? 'selected' : '' });
-    card.addEventListener('pointerdown', (e) => handPointerDown(e, i));
+    card.addEventListener('click', () => handTap(i));
     hand.appendChild(card);
   });
 }
 
-let selecting = false, selStart = null, selEnd = null;
+let selStart = null, selEnd = null;
 
-function handPointerDown(e, i) {
+function handTap(i) {
   if (S.scout && S.scout.step === 'pick') { S.scout = null; renderTable(S.room); }
-  selecting = true;
-  selStart = i;
-  selEnd = i;
-  updateSelection();
-  e.preventDefault();
-}
-document.addEventListener('pointermove', (e) => {
-  if (!selecting) return;
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  const card = el && el.closest ? el.closest('.card[data-idx]') : null;
-  if (card && card.closest('#hand')) {
-    selEnd = parseInt(card.dataset.idx, 10);
-    updateSelection();
+  if (selStart == null) {
+    selStart = i;
+    selEnd = i;                 // 第一次点击：选这张
+  } else if (i === selStart) {
+    selStart = null;
+    selEnd = null;              // 点击锚点牌：取消选择
+  } else {
+    selEnd = i;                 // 点击另一张：以锚点为起点扩展/收缩区间
   }
-});
-document.addEventListener('pointerup', () => { if (selecting) { selecting = false; } });
+  updateSelection();
+}
 
 function updateSelection() {
   if (selStart == null) { S.sel = null; }
@@ -398,7 +393,7 @@ function updateSelection() {
 function renderSelectionHint(room, me) {
   const sel = selectionRange();
   const hint = $('action-hint');
-  if (!sel) { hint.textContent = '拖拽或点击手牌，选择要打出的相邻牌。'; return; }
+  if (!sel) { hint.textContent = '点击第一张，再点最后一张，选择连续手牌。'; return; }
   const cards = sel.indices.map((i) => me.hand[i]);
   const values = cards.map((c) => c.value);
   const cls = classify(values);
