@@ -243,9 +243,7 @@ function renderOpponents(room) {
     name.textContent = p.name;
     const row = document.createElement('div');
     row.className = 'orow';
-    row.textContent = room.players.length === 2
-      ? `手牌 ${p.handCount} · 筹码 ${p.chips} · 得分 ${p.scorePileCount} · 总分 ${p.totalScore}`
-      : `手牌 ${p.handCount} · 得分 ${p.scorePileCount} · 总分 ${p.totalScore}`;
+    row.textContent = `手牌 ${p.handCount} · 筹码 ${p.chips} · 得分 ${p.scorePileCount} · 总分 ${p.totalScore}`;
     div.appendChild(name);
     div.appendChild(row);
     if (p.idx === room.currentShow?.ownerIdx) {
@@ -305,8 +303,6 @@ function renderMyArea(room, me) {
   $('my-captured').textContent = room.players[me.yourIdx].scorePileCount;
   $('my-chips').textContent = room.players[me.yourIdx].chips;
   $('my-total').textContent = room.players[me.yourIdx].totalScore;
-  // 筹码计数仅在 2 人局显示（2 人局筹码是侦察资源）
-  $('my-chips-stat').classList.toggle('hidden', room.players.length !== 2);
   const ss = $('my-ss-token');
   ss.classList.toggle('tok', true);
   ss.classList.toggle('used', me.scoutShowUsed || room.players.length === 2);
@@ -336,8 +332,8 @@ function renderOrientHand(me) {
     $('action-hint').textContent = '等待其他玩家整理手牌…';
   } else {
     actions.innerHTML = `
-      <button class="btn btn-gold" id="btn-flip">🔄 翻转整手</button>
-      <button class="btn btn-primary" id="btn-confirm-hand">✅ 确认手牌</button>`;
+      <button class="btn btn-gold" id="btn-flip">翻转整手</button>
+      <button class="btn btn-primary" id="btn-confirm-hand">确认手牌</button>`;
     $('btn-flip').addEventListener('click', () => socket.emit('flipHand'));
     $('btn-confirm-hand').addEventListener('click', () => socket.emit('confirmHand'));
     $('action-hint').textContent = '可选择翻转整手牌（换到另一面数字），确定后点击确认。';
@@ -731,7 +727,7 @@ function fitHand() {
   if (isMobileLayout() && !inserting) { return; } // 移动端叠牌（非插入）时无需缩放
 
   const gap = parseFloat(getComputedStyle(hand).columnGap || getComputedStyle(hand).gap || '6px') || 6;
-  const slotW = 14;
+  const slotW = 18;
   const slotCount = inserting ? n + 1 : 0;
   const items = n + slotCount;
   const totalGap = gap * (items - 1);
