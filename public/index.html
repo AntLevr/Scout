@@ -8,7 +8,6 @@
 </head>
 <body>
   <div id="connection-status" role="status">连接中…</div>
-  <button id="btn-sound" class="btn btn-mini sound-toggle">音效：开</button>
   <div id="app">
     <!-- ============ 大厅 ============ -->
     <section id="lobby" class="screen">
@@ -54,6 +53,7 @@
     <section id="game" class="screen hidden">
       <header class="topbar">
         <div class="topbar-left">
+          <span id="connection-slot"></span>
           <span class="room-tag">房间 <b id="g-code"></b></span>
           <span class="round-tag">第 <b id="g-round"></b> / <span id="g-total"></span> 轮</span>
         </div>

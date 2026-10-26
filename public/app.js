@@ -21,6 +21,13 @@ function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ 
 
 function $(id) { return document.getElementById(id); }
 
+function setConnectionStatus(message) {
+  const status = $('connection-status');
+  status.textContent = message;
+  status.title = message;
+  status.dataset.connected = String(message === '已连接');
+}
+
 /* ---------------- 工具 ---------------- */
 
 function toast(msg) {
@@ -85,6 +92,11 @@ function cardEl(value, extra = {}) {
   el.appendChild(main);
 
   if (extra.sub != null) {
+    const alternate = document.createElement('div');
+    alternate.className = 'v-alt';
+    if (extra.sub === 6 || extra.sub === 9) alternate.classList.add('underlined');
+    alternate.textContent = extra.sub;
+    el.appendChild(alternate);
     const sub = document.createElement('div');
     sub.className = 'v-sub';
     if (extra.sub === 6 || extra.sub === 9) sub.classList.add('underlined');
@@ -207,6 +219,7 @@ function render() {
   if (!room || !me) return;
 
   if (room.phase === 'lobby') {
+    $('lobby').appendChild($('connection-status'));
     $('game').classList.add('hidden');
     $('lobby').classList.remove('hidden');
     renderLobby();
@@ -216,6 +229,7 @@ function render() {
 
   $('lobby').classList.add('hidden');
   $('game').classList.remove('hidden');
+  $('connection-slot').appendChild($('connection-status'));
 
   $('g-code').textContent = room.code;
   $('g-round').textContent = room.round;
@@ -645,7 +659,7 @@ function renderRoundEndModal(room) {
     </table>
     ${renderReadiness(room)}
     ${renderResults(room)}
-    <div class="modal-actions"><button class="btn btn-primary" id="btn-next-round">${room.players[S.me.yourIdx].ready ? '取消准备' : '准备下一轮'}</button></div>`);
+    <div class="modal-actions"><button class="btn btn-gold" id="btn-next-round">${room.players[S.me.yourIdx].ready ? '取消准备' : '准备下一轮'}</button></div>`);
   $('btn-next-round').disabled = !isOnline();
   $('btn-next-round').addEventListener('click', toggleReady);
 }
@@ -729,12 +743,6 @@ $('btn-ready').addEventListener('click', toggleReady);
 $('host-only').addEventListener('change', (event) => {
   socket.emit('settings', { hostOnly: event.target.checked }, (ack) => { if (!ack?.ok) toast(ack?.message || '设置失败'); });
 });
-function updateSoundButton() { $('btn-sound').textContent = localStorage.getItem('scout-muted') === 'true' ? '音效：关' : '音效：开'; }
-$('btn-sound').addEventListener('click', () => {
-  localStorage.setItem('scout-muted', String(localStorage.getItem('scout-muted') !== 'true'));
-  updateSoundButton();
-});
-updateSoundButton();
 $('quick-chat').addEventListener('click', (event) => {
   if (event.target.tagName !== 'BUTTON' || !isOnline()) return;
   $('chat-input').value = event.target.textContent;
@@ -804,7 +812,6 @@ function tone(freq, start, dur, type, gain) {
 }
 
 function playSfx(type) {
-  if (localStorage.getItem('scout-muted') === 'true') return;
   try {
     const ctx = ensureAudio();
     if (!ctx) return;
@@ -873,7 +880,7 @@ function toggleFullscreen() {
 
 socket.on('state', (data) => {
   S.sessionActive = true;
-  $('connection-status').textContent = '已连接';
+  setConnectionStatus('已连接');
   $('chat-send').disabled = false;
   $('chat-panel').classList.remove('hidden');
   requestAnimationFrame(clampChatPosition);
@@ -1003,7 +1010,7 @@ $('chat-toggle').addEventListener('click', (event) => {
   requestAnimationFrame(clampChatPosition);
 });
 
-// 长按 350ms 后拖动；保存相对位置，窗口变化时限制在可见范围内。
+// 长按 250ms 后拖动；保存相对位置，窗口变化时限制在可见范围内。
 let chatDrag = null;
 let suppressChatClick = false;
 let chatPosition = null;
@@ -1031,7 +1038,7 @@ chatHandle.addEventListener('pointerdown', (event) => {
     if (!chatDrag) return;
     chatDrag.active = true; suppressChatClick = true;
     chatHandle.classList.add('dragging');
-  }, 350);
+  }, 250);
 });
 chatHandle.addEventListener('pointermove', (event) => {
   if (!chatDrag || event.pointerId !== chatDrag.id) return;
@@ -1076,7 +1083,7 @@ $('chat-form').addEventListener('submit', (event) => {
 });
 
 socket.on('connect', () => {
-  $('connection-status').textContent = S.joined ? '正在恢复房间…' : '已连接';
+  setConnectionStatus(S.joined ? '正在恢复房间…' : '已连接');
   if (S.joined && S.room) {
     // 会话中断线后自动重连回原房间
     socket.emit('join', { room: S.room.code, name: S.name, playerId: S.playerId }, (ack) => {
@@ -1112,7 +1119,7 @@ function markDisconnected(message) {
   S.scoutPending = false;
   S.scout = null;
   S.selected = [];
-  $('connection-status').textContent = message;
+  setConnectionStatus(message);
   $('chat-send').disabled = true;
   if (S.room) render();
 }
