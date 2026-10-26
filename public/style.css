@@ -169,21 +169,14 @@ html, body {
 .hand .card { flex: 0 0 auto; }
 .hand .card:first-child { margin-left: auto; }
 .hand .card:last-child { margin-right: auto; }
-.hand-slot { width: 18px; height: 18px; margin-bottom: calc(var(--cw, 74px) * 1.4054 + 8px); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 16px; font-weight: 700; flex: 0 0 auto; align-self: flex-end; }
-.hand-slot:hover { color: #fff; text-shadow: 0 0 6px rgba(242,182,61,0.95); }
+.insert-marks { position: relative; min-height: 26px; margin-bottom: 2px; }
+.insert-arrow { position: absolute; top: 2px; transform: translateX(-50%); width: 20px; height: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 16px; font-weight: 700; }
+.insert-arrow:hover { color: #fff; text-shadow: 0 0 6px rgba(242,182,61,0.95); }
 
 .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 .hint { text-align: center; color: rgba(253,246,227,0.8); font-size: 13px; margin-top: 8px; min-height: 18px; }
 
 /* 侦察插入模式：展开手牌显示插入槽 */
-.hand.inserting { justify-content: flex-start; gap: 4px; }
-.hand.inserting .card { margin-left: 0; width: var(--cw, 74px); height: calc(var(--cw, 74px) * 1.4054); }
-.hand.inserting .card:first-child { margin-left: 0; }
-.hand.inserting .card:last-child { margin-right: 0; }
-.hand.inserting .card.selected { top: 0; }
-.hand.inserting .card .v-main { font-size: calc(var(--cw, 74px) * 0.54); }
-.hand.inserting .card .v-main.d2 { font-size: calc(var(--cw, 74px) * 0.432); }
-.hand.inserting .card .v-sub { font-size: calc(var(--cw, 74px) * 0.243); }
 .ss-label { display: flex; align-items: center; gap: 6px; color: #fdf6e3; font-size: 13px; cursor: pointer; }
 
 /* ---------------- 弹窗 ---------------- */

@@ -310,11 +310,13 @@ function renderMyArea(room, me) {
 
   if (room.phase === 'orient') {
     renderOrientHand(me);
+    renderInsertMarks();
     return;
   }
 
   renderHand(room, me);
   renderActions(room, me);
+  renderInsertMarks();
 }
 
 function renderOrientHand(me) {
@@ -351,17 +353,8 @@ function renderHand(room, me) {
   const hand = $('hand');
   hand.innerHTML = '';
   const inserting = S.scout && S.scout.step === 'insert';
-  hand.classList.toggle('inserting', !!inserting);
 
   me.hand.forEach((c, i) => {
-    if (inserting) {
-      const slot = document.createElement('div');
-      slot.className = 'hand-slot';
-      slot.dataset.slot = i;
-      slot.textContent = '▼';
-      slot.addEventListener('click', () => confirmScout(i));
-      hand.appendChild(slot);
-    }
     const other = c.value === c.a ? c.b : c.a;
     const inSel = S.selected.includes(i);
     const card = cardEl(c.value, { sub: other, idx: i, cls: inSel ? 'selected' : '' });
@@ -369,16 +362,32 @@ function renderHand(room, me) {
     hand.appendChild(card);
   });
 
-  if (inserting) {
-    const slot = document.createElement('div');
-    slot.className = 'hand-slot';
-    slot.dataset.slot = me.hand.length;
-    slot.textContent = '▼';
-    slot.addEventListener('click', () => confirmScout(me.hand.length));
-    hand.appendChild(slot);
-  }
-
   fitHand();
+}
+
+function renderInsertMarks() {
+  const marks = $('insert-marks');
+  const inserting = S.scout && S.scout.step === 'insert';
+  if (!inserting) { marks.innerHTML = ''; return; }
+
+  const hand = $('hand');
+  const cards = hand.querySelectorAll('.card');
+  const n = cards.length;
+  marks.innerHTML = '';
+  if (!n) return;
+
+  const marksRect = marks.getBoundingClientRect();
+  for (let i = 0; i <= n; i++) {
+    const rect = (i === n) ? cards[n - 1].getBoundingClientRect() : cards[i].getBoundingClientRect();
+    const x = (i === n) ? rect.right : rect.left;
+    const arrow = document.createElement('div');
+    arrow.className = 'insert-arrow';
+    arrow.style.left = (x - marksRect.left) + 'px';
+    arrow.dataset.slot = i;
+    arrow.textContent = '▼';
+    arrow.addEventListener('click', () => confirmScout(i));
+    marks.appendChild(arrow);
+  }
 }
 
 function handTap(i) {
@@ -535,7 +544,8 @@ function pickScoutEdge(edge) {
     renderTable(S.room);
     renderHand(S.room, S.me);
     renderActions(S.room, S.me);
-    $('action-hint').textContent = '点击手牌间的「▼」插入；点「翻转」换朝向。';
+    renderInsertMarks();
+    $('action-hint').textContent = '点击手牌上方的「▼」插入；点「翻转」换朝向。';
   });
 }
 
@@ -723,15 +733,10 @@ function fitHand() {
   const n = cards.length;
   if (!n) { hand.style.removeProperty('--cw'); return; }
 
-  const inserting = hand.classList.contains('inserting');
-  if (isMobileLayout() && !inserting) { return; } // 移动端叠牌（非插入）时无需缩放
+  if (isMobileLayout()) { return; } // 移动端叠牌无需缩放
 
   const gap = parseFloat(getComputedStyle(hand).columnGap || getComputedStyle(hand).gap || '6px') || 6;
-  const slotW = 18;
-  const slotCount = inserting ? n + 1 : 0;
-  const items = n + slotCount;
-  const totalGap = gap * (items - 1);
-  const available = hand.clientWidth - totalGap - slotW * slotCount - 4;
+  const available = hand.clientWidth - gap * (n - 1) - 4;
   let cw = Math.floor(available / n);
   cw = Math.max(28, Math.min(74, cw));
   hand.style.setProperty('--cw', cw + 'px');
@@ -739,7 +744,7 @@ function fitHand() {
 let fitTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(fitTimer);
-  fitTimer = setTimeout(() => { if (S.room && S.room.phase !== 'lobby') fitHand(); }, 150);
+  fitTimer = setTimeout(() => { if (S.room && S.room.phase !== 'lobby') { fitHand(); renderInsertMarks(); } }, 150);
 });
 
 /* ---------------- 全屏 ---------------- */
