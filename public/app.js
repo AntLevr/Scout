@@ -10,6 +10,7 @@ const S = {
   name: localStorage.getItem('scout-name') || '',
   selected: [], // 已选中的手牌索引（升序）
   scout: null, // 挖角弹窗状态机
+  scoutPending: false,
   lastEventSeq: null, // 已播放的音效事件序号
 };
 
@@ -391,6 +392,7 @@ function renderInsertMarks() {
 }
 
 function handTap(i) {
+  if (S.scoutPending) return;
   if (S.scout && S.scout.step === 'pick') { S.scout = null; renderTable(S.room); }
   const idx = S.selected.indexOf(i);
   if (idx >= 0) S.selected.splice(idx, 1);   // 已选中 → 取消该牌
@@ -431,6 +433,7 @@ function renderSelectionHint(room, me) {
 function renderActions(room, me) {
   const actions = $('actions');
   actions.innerHTML = '';
+  if (S.scoutPending) { $('action-hint').textContent = '正在确认挖角…'; return; }
   if (room.phase !== 'playing') { $('action-hint').textContent = ''; return; }
 
   const myTurn = room.currentIdx === me.yourIdx;
@@ -441,6 +444,7 @@ function renderActions(room, me) {
 
   // 挖角进行中
   if (S.scout) {
+    renderScoutSteps(actions, S.scout.step, S.scout.scoutShow);
     if (S.scout.step === 'pick') {
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'btn btn-ghost';
@@ -465,20 +469,6 @@ function renderActions(room, me) {
       preview.addEventListener('click', flipScoutCard);
       actions.appendChild(preview);
 
-      // 挖角+表演
-      const canSS = room.players.length !== 2 && !me.scoutShowUsed;
-      if (canSS) {
-        const label = document.createElement('label');
-        label.className = 'ss-label';
-        const chk = document.createElement('input');
-        chk.type = 'checkbox';
-        chk.checked = S.scout.scoutShow;
-        chk.addEventListener('change', (e) => { S.scout.scoutShow = e.target.checked; });
-        label.appendChild(chk);
-        label.appendChild(document.createTextNode(' ✨ 挖角+表演'));
-        actions.appendChild(label);
-      }
-
       // 取消
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'btn btn-ghost';
@@ -488,6 +478,10 @@ function renderActions(room, me) {
     }
     return;
   }
+
+  const completingScoutShow = room.players.length !== 2 && me.scoutShowUsed && room.mustShow
+    && room.lastEvent?.type === 'scout' && room.lastEvent.targetIdx === me.yourIdx;
+  if (completingScoutShow) renderScoutSteps(actions, 'show', true);
 
   // 正常出牌
   const sel = S.selected;
@@ -501,14 +495,23 @@ function renderActions(room, me) {
   actions.appendChild(showBtn);
 
   const scoutBtn = document.createElement('button');
-  scoutBtn.className = 'btn btn-gold';
+  scoutBtn.className = 'btn';
   scoutBtn.textContent = room.players.length === 2 ? '🕵️ 挖角（消耗筹码）' : '🕵️ 挖角';
   scoutBtn.disabled = !me.canScout;
-  scoutBtn.addEventListener('click', startScout);
+  scoutBtn.addEventListener('click', () => startScout(false));
   actions.appendChild(scoutBtn);
 
+  if (room.players.length !== 2) {
+    const comboBtn = document.createElement('button');
+    comboBtn.className = 'btn btn-gold';
+    comboBtn.textContent = me.scoutShowUsed ? '✨ 挖角＋表演（本轮已用）' : '✨ 挖角＋表演';
+    comboBtn.disabled = !me.canScout || me.scoutShowUsed;
+    comboBtn.addEventListener('click', () => startScout(true));
+    actions.appendChild(comboBtn);
+  }
+
   if (room.mustShow) {
-    $('action-hint').textContent = '必须表演：请选择手牌打出。';
+    $('action-hint').textContent = completingScoutShow ? '挖角已完成，请选择手牌，完成表演。' : '必须表演：请选择手牌打出。';
   } else if (S.selected.length === 0) {
     $('action-hint').textContent = '选择要打出的牌，或点击「挖角」。';
   }
@@ -525,12 +528,29 @@ function doShow() {
 
 /* ---------------- 挖角（内联交互，无弹窗） ---------------- */
 
-function startScout() {
+function renderScoutSteps(container, step, combo) {
+  const steps = document.createElement('div');
+  steps.className = 'scout-steps';
+  steps.setAttribute('aria-label', combo ? '挖角加表演步骤' : '挖角步骤');
+  const labels = [['pick', '选取场上牌'], ['insert', '插入手牌']];
+  if (combo) labels.push(['show', '表演']);
+  labels.forEach(([key, label], index) => {
+    if (index) steps.appendChild(document.createTextNode(' → '));
+    const item = document.createElement('span');
+    item.textContent = label;
+    if (key === step) { item.className = 'current'; item.setAttribute('aria-current', 'step'); }
+    steps.appendChild(item);
+  });
+  container.appendChild(steps);
+}
+
+function startScout(scoutShow = false) {
+  if (S.scoutPending || !S.me.canScout || (scoutShow && (S.me.scoutShowUsed || S.room.players.length === 2))) return;
   S.selected = [];
-  S.scout = { step: 'pick', edge: null, card: null, up: null, scoutShow: false };
+  S.scout = { step: 'pick', edge: null, card: null, up: null, scoutShow };
   renderHand(S.room, S.me);
   renderTable(S.room);
-  $('action-hint').textContent = '🕵️ 点击当前表演最左或最右的一张牌；再点一次「挖角」可取消。';
+  $('action-hint').textContent = scoutShow ? '✨ 挖角＋表演：先点击当前表演最左或最右的一张牌。' : '🕵️ 点击当前表演最左或最右的一张牌。';
   renderActions(S.room, S.me);
 }
 
@@ -557,10 +577,26 @@ function flipScoutCard() {
 
 function confirmScout(insertIndex) {
   const sc = S.scout;
-  if (!sc || sc.step !== 'insert') return;
-  socket.emit('scout', { edge: sc.edge, up: sc.up, insertIndex, scoutShow: sc.scoutShow }, (ack) => {
-    if (ack && !ack.ok) { toast(ack.message); return; }
-    S.scout = null;
+  if (!sc || sc.step !== 'insert' || S.scoutPending) return;
+  if (!socket.connected) { toast('连接已断开，请等待重连'); return; }
+  // 先展示插入结果，避免云端往返期间界面毫无反馈；规则仍由服务端确认。
+  S.scoutPending = true;
+  S.scout = null;
+  S.selected = [];
+  const value = sc.up === 'a' ? sc.card.a : sc.card.b;
+  const hand = S.me.hand.slice();
+  hand.splice(insertIndex, 0, { ...sc.card, up: sc.up, value });
+  renderHand(S.room, { ...S.me, hand });
+  renderTable(S.room);
+  renderActions(S.room, S.me);
+  renderInsertMarks();
+  socket.timeout(8000).emit('scout', { edge: sc.edge, up: sc.up, insertIndex, scoutShow: sc.scoutShow }, (err, ack) => {
+    S.scoutPending = false;
+    if (err || !ack || !ack.ok) {
+      // 不改动本地权威状态，失败时直接恢复最近一次服务端手牌。
+      render();
+      toast(err ? '确认超时，请等待状态同步后再操作' : ack?.message || '挖角失败');
+    }
   });
 }
 
@@ -898,7 +934,7 @@ $('chat-toggle').addEventListener('click', (event) => {
   requestAnimationFrame(clampChatPosition);
 });
 
-// 长按 450ms 后拖动；保存相对位置，窗口变化时限制在可见范围内。
+// 长按 350ms 后拖动；保存相对位置，窗口变化时限制在可见范围内。
 let chatDrag = null;
 let suppressChatClick = false;
 let chatPosition = null;
@@ -926,7 +962,7 @@ chatHandle.addEventListener('pointerdown', (event) => {
     if (!chatDrag) return;
     chatDrag.active = true; suppressChatClick = true;
     chatHandle.classList.add('dragging');
-  }, 450);
+  }, 350);
 });
 chatHandle.addEventListener('pointermove', (event) => {
   if (!chatDrag || event.pointerId !== chatDrag.id) return;
