@@ -825,7 +825,7 @@ $('hand').addEventListener('scroll', () => {
   if (marksFrame !== null) return;
   marksFrame = requestAnimationFrame(() => { marksFrame = null; renderInsertMarks(); });
 });
-$('btn-start').addEventListener('click', () => { enterFullscreen(); socket.emit('startGame', {}, (ack) => { if (ack && !ack.ok) toast(ack.message); }); });
+$('btn-start').addEventListener('click', () => { if (isMobileLayout() || window.matchMedia('(pointer: coarse)').matches) enterFullscreen(); socket.emit('startGame', {}, (ack) => { if (ack && !ack.ok) toast(ack.message); }); });
 $('btn-leave').addEventListener('click', () => leaveGame());
 $('btn-leave-game').addEventListener('click', () => {
   if (confirm('确定退出房间？若对局进行中，本局将结束。')) leaveGame();
