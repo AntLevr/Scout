@@ -376,7 +376,9 @@ function renderTable(room) {
   cards.className = 'show-cards';
   show.cards.forEach((c, i) => {
     const isEdge = S.scout && S.scout.step === 'pick' && (i === 0 || i === show.cards.length - 1);
-    const card = cardEl(c.value, { sub: c.other, small: true, idx: i, cls: isEdge ? 'show-edge' : '' });
+    const selectedSource = S.scout?.step === 'insert' && i === (S.scout.edge === 'right' ? show.cards.length - 1 : 0);
+    const card = cardEl(c.value, { sub: c.other, small: true, idx: i,
+      cls: isEdge ? 'show-edge' : S.scout?.step === 'pick' ? 'show-muted' : selectedSource ? 'scout-source' : '' });
     if (isEdge) {
       card.addEventListener('click', () => pickScoutEdge(i === 0 ? 'left' : 'right'));
     }
@@ -411,6 +413,7 @@ function renderMyArea(room, me) {
 function renderOrientHand(me) {
   closeCardPreview();
   const hand = $('hand');
+  hand.classList.remove('scout-inserting');
   hand.innerHTML = '';
   me.hand.forEach((c) => {
     const other = c.value === c.a ? c.b : c.a;
@@ -444,43 +447,69 @@ function isContiguous(arr) {
 function renderHand(room, me) {
   closeCardPreview();
   const hand = $('hand');
+  const scroll = hand.scrollLeft;
   hand.innerHTML = '';
-  const inserting = S.scout && S.scout.step === 'insert';
-
-  me.hand.forEach((c, i) => {
+  const inserting = S.scout?.step === 'insert';
+  hand.classList.toggle('scout-inserting', inserting);
+  for (let i = 0; i <= me.hand.length; i++) {
+    if (inserting) {
+      const slot = document.createElement('button');
+      slot.className = 'insert-slot' + (S.scout.insertIndex === i ? ' chosen' : '');
+      slot.type = 'button'; slot.textContent = '+';
+      slot.setAttribute('aria-label', `预览插入位置 ${i + 1}`);
+      slot.setAttribute('aria-pressed', String(S.scout.insertIndex === i));
+      slot.addEventListener('click', () => chooseScoutPosition(i));
+      hand.appendChild(slot);
+      if (S.scout.insertIndex === i) {
+        const sc = S.scout;
+        const ghost = cardEl(sc.up === 'a' ? sc.card.a : sc.card.b, { sub: sc.up === 'a' ? sc.card.b : sc.card.a, cls: 'pending-card' });
+        const label = document.createElement('span'); label.className = 'pending-label'; label.textContent = '待插入';
+        ghost.appendChild(label);
+        ghost.title = '待插入，点击翻面';
+        ghost.addEventListener('click', flipScoutCard);
+        hand.appendChild(ghost);
+      }
+    }
+    if (i === me.hand.length) break;
+    const c = me.hand[i];
     const other = c.value === c.a ? c.b : c.a;
-    const inSel = S.selected.includes(i);
-    const card = cardEl(c.value, { sub: other, idx: i, cls: inSel ? 'selected' : '' });
-    if (!inserting) card.addEventListener('click', () => handTap(i));
+    const card = cardEl(c.value, { sub: other, idx: i, cls: S.selected.includes(i) ? 'selected' : '' });
+    card.addEventListener('click', inserting ? () => chooseScoutPosition(i) : () => handTap(i));
     hand.appendChild(card);
-  });
-
+  }
   fitHand();
+  if (inserting) hand.scrollLeft = scroll;
 }
 
 function renderInsertMarks() {
-  const marks = $('insert-marks');
-  const inserting = S.scout && S.scout.step === 'insert';
-  if (!inserting) { marks.innerHTML = ''; return; }
+  // 插入位置现在直接位于手牌内，随手牌一起滚动。
+  $('insert-marks').innerHTML = '';
+}
 
-  const hand = $('hand');
-  const cards = hand.querySelectorAll('.card');
-  const n = cards.length;
-  marks.innerHTML = '';
-  if (!n) return;
+function chooseScoutPosition(index) {
+  if (S.scout?.step !== 'insert' || S.scoutPending) return;
+  S.scout.insertIndex = index;
+  renderHand(S.room, S.me);
+  renderActions(S.room, S.me);
+}
 
-  const marksRect = marks.getBoundingClientRect();
-  for (let i = 0; i <= n; i++) {
-    const rect = (i === n) ? cards[n - 1].getBoundingClientRect() : cards[i].getBoundingClientRect();
-    const x = (i === n) ? rect.right : rect.left;
-    const arrow = document.createElement('div');
-    arrow.className = 'insert-arrow';
-    arrow.style.left = (x - marksRect.left) + 'px';
-    arrow.dataset.slot = i;
-    arrow.textContent = '▼';
-    arrow.addEventListener('click', () => confirmScout(i));
-    marks.appendChild(arrow);
+function scoutPlan() {
+  const sc = S.scout;
+  const value = sc.up === 'a' ? sc.card.a : sc.card.b;
+  const hand = S.me.hand.slice();
+  hand.splice(sc.insertIndex, 0, { ...sc.card, up: sc.up, value });
+  const cards = S.room.currentShow.cards;
+  const remaining = sc.edge === 'right' ? cards.slice(0, -1) : cards.slice(1);
+  if (!remaining.length) return { hand, canShow: true };
+  const cls = classify(remaining.map((c) => c.value));
+  const target = { length: remaining.length, type: cls.type, top: cls.top };
+  for (let a = 0; a < hand.length; a++) {
+    for (let b = a + 1; b <= hand.length; b++) {
+      const combo = classify(hand.slice(a, b).map((c) => c.value));
+      if (combo.valid && showBeats({ length: b - a, type: combo.type, top: combo.top }, target)) return { hand, canShow: true };
+    }
   }
+  return { hand, canShow: false };
 }
 
 function handTap(i) {
@@ -548,19 +577,9 @@ function renderActions(room, me) {
       // 翻转朝向
       const flipBtn = document.createElement('button');
       flipBtn.className = 'btn btn-gold';
-      flipBtn.textContent = '🔄 翻转';
+      flipBtn.textContent = '🔄 翻面';
       flipBtn.addEventListener('click', flipScoutCard);
       actions.appendChild(flipBtn);
-
-      // 预览卡（当前朝向，点击可翻转）
-      const a = S.scout.card.a, b = S.scout.card.b;
-      const v = S.scout.up === 'a' ? a : b;
-      const other = S.scout.up === 'a' ? b : a;
-      const preview = cardEl(v, { sub: other, small: true });
-      preview.style.cursor = 'pointer';
-      preview.title = '点击翻转朝向';
-      preview.addEventListener('click', flipScoutCard);
-      actions.appendChild(preview);
 
       // 取消
       const cancelBtn = document.createElement('button');
@@ -568,6 +587,16 @@ function renderActions(room, me) {
       cancelBtn.textContent = '✖ 取消';
       cancelBtn.addEventListener('click', cancelScout);
       actions.appendChild(cancelBtn);
+      const plan = scoutPlan();
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn btn-primary';
+      confirmBtn.textContent = S.scout.scoutShow ? '确认并继续表演' : '确认挖角';
+      confirmBtn.disabled = S.scout.scoutShow && !plan.canShow;
+      confirmBtn.addEventListener('click', confirmScout);
+      actions.appendChild(confirmBtn);
+      $('action-hint').textContent = S.scout.scoutShow && !plan.canShow
+        ? '此方案无法继续表演，请翻面或调整位置；也可取消后选择普通挖角。'
+        : '点击手牌间的「＋」预览位置，可左右滑动；确认后才会插入。';
     }
     return;
   }
@@ -645,35 +674,44 @@ function startScout(scoutShow = false) {
   renderTable(S.room);
   $('action-hint').textContent = scoutShow ? '✨ 挖角＋表演：先点击当前表演最左或最右的一张牌。' : '🕵️ 点击当前表演最左或最右的一张牌。';
   renderActions(S.room, S.me);
+  if (S.room.currentShow?.cards.length === 1) pickScoutEdge('left');
 }
 
 function pickScoutEdge(edge) {
   const scout = S.scout;
-  socket.emit('scoutPreview', { edge }, (ack) => {
+  if (!scout || scout.previewing) return;
+  scout.previewing = true;
+  socket.timeout(5000).emit('scoutPreview', { edge }, (err, ack) => {
     if (S.scout !== scout || !scout) return;
-    if (!ack || !ack.ok) { toast('无法挖角'); return; }
+    scout.previewing = false;
+    if (err || !ack || !ack.ok) { toast(err ? '读取超时，请重新选择场上牌' : '无法挖角'); return; }
     S.scout.edge = ack.edge;
     S.scout.card = ack.card;
     S.scout.up = (ack.card.value === ack.card.a) ? 'a' : 'b';
     S.scout.step = 'insert';
+    S.scout.insertIndex = 0;
     renderTable(S.room);
     renderHand(S.room, S.me);
     renderActions(S.room, S.me);
     renderInsertMarks();
-    $('action-hint').textContent = '点击手牌上方的「▼」插入；点「翻转」换朝向。';
+
   });
 }
 
 function flipScoutCard() {
   if (!S.scout) return;
   S.scout.up = S.scout.up === 'a' ? 'b' : 'a';
+  renderHand(S.room, S.me);
   renderActions(S.room, S.me);
 }
 
-function confirmScout(insertIndex) {
+function confirmScout() {
   const sc = S.scout;
   if (!sc || sc.step !== 'insert' || S.scoutPending) return;
   if (!isOnline()) { toast('连接已断开，请等待重连'); return; }
+  const insertIndex = sc.insertIndex;
+  const plan = scoutPlan();
+  if (sc.scoutShow && !plan.canShow) return;
   // 先展示插入结果，避免云端往返期间界面毫无反馈；规则仍由服务端确认。
   S.scoutPending = true;
   S.scout = null;
@@ -923,6 +961,7 @@ function fitHand() {
   const cards = hand.querySelectorAll('.card');
   const n = cards.length;
   if (!n) { hand.style.removeProperty('--cw'); return; }
+  if (S.scout?.step === 'insert') { hand.style.setProperty('--cw', '74px'); return; }
 
   if (isMobileLayout()) { return; } // 移动端叠牌无需缩放
 

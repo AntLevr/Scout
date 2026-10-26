@@ -33,7 +33,8 @@ function setup() {
   }
   const html = fs.readFileSync(path.resolve(__dirname, '../public/index.html'), 'utf8');
   for (const match of html.matchAll(/id="([^"]+)"/g)) elements.set(match[1], new Element());
-  const socket = { connected: true, on: (event, fn) => { handlers[event] = fn; }, emit() {}, disconnect() { this.connected = false; } };
+  const sent = [];
+  const socket = { connected: true, on: (event, fn) => { handlers[event] = fn; }, emit(event, payload, callback) { sent.push({ event, payload, callback }); }, timeout() { return this; }, disconnect() { this.connected = false; } };
   const ctx = vm.createContext({ io: () => socket,
     document: { getElementById: (id) => { assert(elements.has(id), `Missing element: ${id}`); return elements.get(id); }, createElement: () => new Element(), createTextNode: (text) => ({ textContent: text }), addEventListener: (event, fn) => { documentEvents[event] = fn; }, hidden: false },
     window: { innerWidth: 390, innerHeight: 844, addEventListener() {}, matchMedia: () => ({ matches: true }) },
@@ -47,7 +48,7 @@ function setup() {
     mustShow: false, settings: { hostOnly: true }, results: [], players: [0, 1, 2].map((idx) => ({ idx, name: idx ? 'B' : '<b>A</b>', handCount: 2, scorePileCount: 0, chips: 0, totalScore: 0, scoutShowUsed: false, connected: true, isHost: idx === 0 })),
     currentShow: { ownerIdx: 1, type: 'set', length: 1, top: 3, cards: [{ value: 3, other: 7 }] } },
     private: { yourIdx: 0, canScout: true, scoutShowUsed: false, hand: [{ id: 1, a: 1, b: 2, up: 'a', value: 1 }] } });
-  return { ctx, elements, handlers, data, socket, timers, documentEvents };
+  return { ctx, elements, handlers, data, socket, timers, documentEvents, sent };
 }
 
 test('invite code is prefilled and stats no longer show combo token', () => {
@@ -62,11 +63,12 @@ test('unrelated state update preserves active scout interaction', () => {
   vm.runInContext('startScout(true)', ctx);
   handlers.state(data());
   assert.equal(vm.runInContext('S.scout.step', ctx), 'pick');
-  vm.runInContext("S.scout.step = 'insert'; S.scout.card = {a:3,b:7}; S.scout.up = 'a'", ctx);
+  vm.runInContext("S.scout.step = 'insert'; S.scout.card = {a:3,b:7}; S.scout.up = 'a'; S.scout.insertIndex = 0", ctx);
   handlers.state(data());
   assert.equal(vm.runInContext('S.scout.step', ctx), 'insert');
   elements.get('hand').events.scroll();
-  assert.equal(elements.get('insert-marks').children.length, 2);
+  assert.equal(elements.get('insert-marks').children.length, 0);
+  assert.equal(elements.get('hand').children.filter((c) => c.className?.startsWith('insert-slot')).length, 2);
 });
 
 test('ties, round results and nickname escaping render together', () => {
@@ -137,4 +139,43 @@ test('opponent seating is relative to self and stays stable across turns', () =>
   state.public.phase = 'orient'; handlers.state(state);
   assert.equal(elements.get('myarea').classList.contains('my-turn'), false);
   assert.equal(vm.runInContext('S.me.yourIdx', ctx), 2);
+});
+
+test('single-card scout auto-picks, previews locally, and only submits on confirmation', () => {
+  const { ctx, handlers, data, sent, elements } = setup(); handlers.state(data());
+  vm.runInContext('startScout(false)', ctx);
+  assert.equal(sent[0].event, 'scoutPreview');
+  sent[0].callback(null, { ok: true, edge: 'left', card: { a: 3, b: 7, value: 3 } });
+  assert.equal(vm.runInContext('S.scout.step', ctx), 'insert');
+  assert.equal(vm.runInContext('S.me.hand.length', ctx), 1);
+  assert(elements.get('hand').children.some((c) => c.className === 'card pending-card'));
+  vm.runInContext('chooseScoutPosition(1); flipScoutCard()', ctx);
+  assert.equal(sent.length, 1);
+  assert.equal(vm.runInContext('S.scout.up', ctx), 'b');
+  vm.runInContext('confirmScout(); confirmScout()', ctx);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].event, 'scout');
+  assert.equal(sent[1].payload.insertIndex, 1);
+  assert.equal(sent[1].payload.up, 'b');
+  sent[1].callback(null, { ok: false, message: 'rejected' });
+  assert.equal(vm.runInContext('S.me.hand.length', ctx), 1);
+  assert.equal(vm.runInContext('S.scoutPending', ctx), false);
+  assert.equal(elements.get('hand').children.length, 1);
+});
+
+test('combo preview rejects impossible plan and enables a stronger orientation', () => {
+  const { ctx, handlers, data, sent, elements } = setup();
+  const state = data();
+  state.public.currentShow = { ownerIdx: 1, type: 'set', length: 2, top: 8, cards: [{ value: 8, other: 9 }, { value: 8, other: 10 }] };
+  handlers.state(state); vm.runInContext("startScout(true); pickScoutEdge('left')", ctx);
+  sent[0].callback(null, { ok: true, edge: 'left', card: { a: 8, b: 9, value: 8 } });
+  assert.equal(vm.runInContext('scoutPlan().canShow', ctx), false);
+  assert.equal(elements.get('actions').children.at(-1).disabled, true);
+  vm.runInContext('confirmScout()', ctx); assert.equal(sent.length, 1);
+  vm.runInContext('flipScoutCard()', ctx);
+  assert.equal(vm.runInContext('scoutPlan().canShow', ctx), true);
+  assert.equal(elements.get('actions').children.at(-1).disabled, false);
+  vm.runInContext('cancelScout()', ctx);
+  assert.equal(vm.runInContext('S.scout', ctx), null);
+  assert.equal(sent.length, 1);
 });
