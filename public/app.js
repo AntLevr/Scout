@@ -317,13 +317,11 @@ function renderMyArea(room, me) {
 
   if (room.phase === 'orient') {
     renderOrientHand(me);
-    fitHand();
     return;
   }
 
   renderHand(room, me);
   renderActions(room, me);
-  fitHand();
 }
 
 function renderOrientHand(me) {
@@ -333,6 +331,7 @@ function renderOrientHand(me) {
     const other = c.value === c.a ? c.b : c.a;
     hand.appendChild(cardEl(c.value, { sub: other }));
   });
+  fitHand();
   const actions = $('actions');
   const myConfirmed = S.room.players[me.yourIdx].confirmed;
   if (myConfirmed) {
@@ -360,14 +359,35 @@ function renderHand(room, me) {
   const hand = $('hand');
   hand.innerHTML = '';
   const sel = selectionRange();
+  const inserting = S.scout && S.scout.step === 'insert';
+  hand.classList.toggle('inserting', !!inserting);
 
   me.hand.forEach((c, i) => {
+    if (inserting) {
+      const slot = document.createElement('div');
+      slot.className = 'hand-slot';
+      slot.dataset.slot = i;
+      slot.textContent = '▼';
+      slot.addEventListener('click', () => confirmScout(i));
+      hand.appendChild(slot);
+    }
     const other = c.value === c.a ? c.b : c.a;
     const inSel = sel && i >= sel.a && i <= sel.b;
     const card = cardEl(c.value, { sub: other, idx: i, cls: inSel ? 'selected' : '' });
-    card.addEventListener('click', () => handTap(i));
+    if (!inserting) card.addEventListener('click', () => handTap(i));
     hand.appendChild(card);
   });
+
+  if (inserting) {
+    const slot = document.createElement('div');
+    slot.className = 'hand-slot';
+    slot.dataset.slot = me.hand.length;
+    slot.textContent = '▼';
+    slot.addEventListener('click', () => confirmScout(me.hand.length));
+    hand.appendChild(slot);
+  }
+
+  fitHand();
 }
 
 let selStart = null, selEnd = null;
@@ -427,6 +447,57 @@ function renderActions(room, me) {
     return; // 非自己回合：不显示表演/侦察按钮
   }
 
+  // 侦察进行中
+  if (S.scout) {
+    if (S.scout.step === 'pick') {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn btn-ghost';
+      cancelBtn.textContent = '✖ 取消侦察';
+      cancelBtn.addEventListener('click', cancelScout);
+      actions.appendChild(cancelBtn);
+    } else if (S.scout.step === 'insert') {
+      // 翻转朝向
+      const flipBtn = document.createElement('button');
+      flipBtn.className = 'btn btn-gold';
+      flipBtn.textContent = '🔄 翻转';
+      flipBtn.addEventListener('click', flipScoutCard);
+      actions.appendChild(flipBtn);
+
+      // 预览卡（当前朝向，点击可翻转）
+      const a = S.scout.card.a, b = S.scout.card.b;
+      const v = S.scout.up === 'a' ? a : b;
+      const other = S.scout.up === 'a' ? b : a;
+      const preview = cardEl(v, { sub: other, small: true });
+      preview.style.cursor = 'pointer';
+      preview.title = '点击翻转朝向';
+      preview.addEventListener('click', flipScoutCard);
+      actions.appendChild(preview);
+
+      // 侦察+表演
+      const canSS = room.players.length !== 2 && !me.scoutShowUsed;
+      if (canSS) {
+        const label = document.createElement('label');
+        label.className = 'ss-label';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = S.scout.scoutShow;
+        chk.addEventListener('change', (e) => { S.scout.scoutShow = e.target.checked; });
+        label.appendChild(chk);
+        label.appendChild(document.createTextNode(' ✨ 侦察+表演'));
+        actions.appendChild(label);
+      }
+
+      // 取消
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn btn-ghost';
+      cancelBtn.textContent = '✖ 取消';
+      cancelBtn.addEventListener('click', cancelScout);
+      actions.appendChild(cancelBtn);
+    }
+    return;
+  }
+
+  // 正常出牌
   const sel = selectionRange();
   const canShow = sel && classify(sel.indices.map((i) => me.hand[i]).map((c) => c.value)).valid;
 
@@ -439,20 +510,9 @@ function renderActions(room, me) {
 
   const scoutBtn = document.createElement('button');
   scoutBtn.className = 'btn btn-gold';
-  if (S.scout && S.scout.step === 'pick') {
-    scoutBtn.textContent = '✖ 取消侦察';
-    scoutBtn.disabled = false;
-    scoutBtn.addEventListener('click', () => {
-      S.scout = null;
-      renderTable(room);
-      renderActions(room, me);
-      $('action-hint').textContent = '选择要打出的牌，或点击「侦察」挖角。';
-    });
-  } else {
-    scoutBtn.textContent = room.players.length === 2 ? '🕵️ 侦察（消耗筹码）' : '🕵️ 侦察';
-    scoutBtn.disabled = !me.canScout;
-    scoutBtn.addEventListener('click', () => openScoutModal());
-  }
+  scoutBtn.textContent = room.players.length === 2 ? '🕵️ 侦察（消耗筹码）' : '🕵️ 侦察';
+  scoutBtn.disabled = !me.canScout;
+  scoutBtn.addEventListener('click', startScout);
   actions.appendChild(scoutBtn);
 
   if (room.mustShow) {
@@ -472,11 +532,14 @@ function doShow() {
   S.sel = null;
 }
 
-/* ---------------- 侦察弹窗 ---------------- */
+/* ---------------- 侦察（内联交互，无弹窗） ---------------- */
 
-function openScoutModal() {
-  S.scout = { step: 'pick', edge: null, card: null, up: null, insertIndex: null, scoutShow: false };
-  renderScoutModal();
+function startScout() {
+  S.sel = null; selStart = selEnd = null;
+  S.scout = { step: 'pick', edge: null, card: null, up: null, scoutShow: false };
+  renderTable(S.room);
+  $('action-hint').textContent = '🕵️ 点击当前表演最左或最右的一张牌；再点一次「侦察」可取消。';
+  renderActions(S.room, S.me);
 }
 
 function pickScoutEdge(edge) {
@@ -485,89 +548,34 @@ function pickScoutEdge(edge) {
     S.scout.edge = ack.edge;
     S.scout.card = ack.card;
     S.scout.up = (ack.card.value === ack.card.a) ? 'a' : 'b';
-    S.scout.insertIndex = S.me.hand.length;
-    S.scout.step = 'orient';
-    renderScoutModal();
-  });
-}
-
-function renderScoutModal() {
-  const sc = S.scout;
-  const me = S.me;
-  if (!sc) return;
-
-  if (sc.step === 'pick') {
-    // 第一步无需遮罩：直接在桌面上高亮并等待点击两端卡牌
-    $('overlay').classList.add('hidden');
+    S.scout.step = 'insert';
     renderTable(S.room);
-    $('action-hint').textContent = '🕵️ 点击当前表演最左或最右的一张牌；再点一次「侦察」可取消。';
-    renderActions(S.room, me);
-    return;
-  }
-
-  const a = sc.card.a, b = sc.card.b;
-  let orientHTML = '';
-  ['a', 'b'].forEach((k) => {
-    const v = k === 'a' ? a : b;
-    const other = k === 'a' ? b : a;
-    const cls = sc.up === k ? 'selected' : '';
-    const card = cardEl(v, { sub: other, cls });
-    card.id = 'orient-' + k;
-    card.style.cursor = 'pointer';
-    orientHTML += card.outerHTML;
-  });
-
-  const insertHTML = insertRowHTML(sc.insertIndex, me.hand);
-
-  const canSS = S.room.players.length !== 2 && !me.scoutShowUsed;
-
-  showOverlay(`
-    <h2>🕵️ 侦察</h2>
-    <p style="text-align:center">这张牌有两面，选择插入手牌时的<strong>朝向</strong>：</p>
-    <div class="orient-pick">${orientHTML}</div>
-    <p style="text-align:center">选择<strong>插入位置</strong>（点击手牌间的空隙）：</p>
-    <div class="insert-row" id="insert-row">${insertHTML}</div>
-    ${canSS ? `<label style="display:flex;align-items:center;gap:8px;justify-content:center;margin:10px 0">
-      <input type="checkbox" id="scout-show-chk" ${sc.scoutShow ? 'checked' : ''} />
-      ✨ 侦察后立即表演（侦察+表演，本轮一次）
-    </label>` : ''}
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="scout-cancel">取消</button>
-      <button class="btn btn-primary" id="scout-confirm">确认侦察</button>
-    </div>`);
-
-  $('orient-a').addEventListener('click', () => { sc.up = 'a'; renderScoutModal(); });
-  $('orient-b').addEventListener('click', () => { sc.up = 'b'; renderScoutModal(); });
-  if (canSS) $('scout-show-chk').addEventListener('change', (e) => { sc.scoutShow = e.target.checked; });
-  $('scout-cancel').addEventListener('click', () => { S.scout = null; closeOverlay(); render(); });
-  $('scout-confirm').addEventListener('click', () => {
-    socket.emit('scout', { edge: sc.edge, up: sc.up, insertIndex: sc.insertIndex, scoutShow: sc.scoutShow }, (ack) => {
-      if (ack && !ack.ok) { toast(ack.message); return; }
-      S.scout = null;
-      closeOverlay();
-    });
-  });
-  $('insert-row').querySelectorAll('.hand-slot').forEach((slot) => {
-    slot.addEventListener('click', () => {
-      sc.insertIndex = parseInt(slot.dataset.slot, 10);
-      renderScoutModal();
-    });
+    renderHand(S.room, S.me);
+    renderActions(S.room, S.me);
+    $('action-hint').textContent = '点击手牌间的「▼」插入；点「翻转」换朝向。';
   });
 }
 
-function insertRowHTML(insertIndex, hand) {
-  let html = '';
-  const slots = hand.length + 1;
-  for (let i = 0; i < slots; i++) {
-    const isSel = i === insertIndex;
-    html += `<div class="hand-slot" data-slot="${i}" style="${isSel ? 'background:rgba(242,182,61,.4);' : ''}">${isSel ? '▼' : '+'}</div>`;
-    if (i < hand.length) {
-      const c = hand[i];
-      const other = c.value === c.a ? c.b : c.a;
-      html += cardEl(c.value, { sub: other, small: true }).outerHTML;
-    }
-  }
-  return html;
+function flipScoutCard() {
+  if (!S.scout) return;
+  S.scout.up = S.scout.up === 'a' ? 'b' : 'a';
+  renderActions(S.room, S.me);
+}
+
+function confirmScout(insertIndex) {
+  const sc = S.scout;
+  if (!sc || sc.step !== 'insert') return;
+  socket.emit('scout', { edge: sc.edge, up: sc.up, insertIndex, scoutShow: sc.scoutShow }, (ack) => {
+    if (ack && !ack.ok) { toast(ack.message); return; }
+    S.scout = null;
+  });
+}
+
+function cancelScout() {
+  S.scout = null;
+  renderTable(S.room);
+  renderActions(S.room, S.me);
+  $('action-hint').textContent = '选择要打出的牌，或点击「侦察」挖角。';
 }
 
 /* ---------------- 结算弹窗 ---------------- */
@@ -722,15 +730,27 @@ function playSfx(type) {
 }
 
 /* ---------------- 手牌自适应（移动端全部显示、无需滚动） ---------------- */
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 480px), (orientation: landscape) and (max-height: 520px)').matches;
+}
+
 function fitHand() {
-  if (window.matchMedia('(max-width: 480px), (orientation: landscape) and (max-height: 520px)').matches) { return; } // 移动端用叠牌布局，无需缩放
   const hand = $('hand');
-  const n = hand.children.length;
+  const cards = hand.querySelectorAll('.card');
+  const n = cards.length;
   if (!n) { hand.style.removeProperty('--cw'); return; }
+
+  const inserting = hand.classList.contains('inserting');
+  if (isMobileLayout() && !inserting) { return; } // 移动端叠牌（非插入）时无需缩放
+
   const gap = parseFloat(getComputedStyle(hand).columnGap || getComputedStyle(hand).gap || '6px') || 6;
-  const available = hand.clientWidth - gap * (n - 1) - 4;
+  const slotW = 14;
+  const slotCount = inserting ? n + 1 : 0;
+  const items = n + slotCount;
+  const totalGap = gap * (items - 1);
+  const available = hand.clientWidth - totalGap - slotW * slotCount - 4;
   let cw = Math.floor(available / n);
-  cw = Math.max(30, Math.min(74, cw));
+  cw = Math.max(28, Math.min(74, cw));
   hand.style.setProperty('--cw', cw + 'px');
 }
 let fitTimer = null;
