@@ -57,6 +57,11 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 
 .screen { flex: 1 0 auto; display: flex; flex-direction: column; min-width: 0; }
 .hidden { display: none !important; }
+.card-preview { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.35); pointer-events: none; }
+.card-preview .card { --cw: min(144px, 45dvh); width: var(--cw); height: calc(var(--cw) * 1.4054); box-shadow: 0 10px 35px rgba(0,0,0,.5); }
+.card-preview .card .v-main { top: calc(var(--cw) * .068); left: calc(var(--cw) * .081); font-size: calc(var(--cw) * .54); }
+.card-preview .card .v-main.d2 { top: calc(var(--cw) * .068); font-size: calc(var(--cw) * .432); }
+.card-preview .card .v-sub { bottom: calc(var(--cw) * .068); right: calc(var(--cw) * .081); font-size: calc(var(--cw) * .243); }
 
 /* ---------------- 通用按钮 ---------------- */
 .btn {
@@ -177,16 +182,13 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
   font-variant-numeric: tabular-nums;
   touch-action: manipulation;
 }
-.card .v-main { position: absolute; top: calc(var(--cw, 74px) * 0.035); left: calc(var(--cw, 74px) * 0.04); font-size: calc(var(--cw, 74px) * 0.54); font-weight: 900; color: #2b1d10; line-height: 1; }
-.card .v-main.d2 { font-size: calc(var(--cw, 74px) * 0.432); }
-.card .v-alt { position: absolute; top: calc(var(--cw, 74px) * 0.66); left: calc(var(--cw, 74px) * 0.04); font-size: calc(var(--cw, 74px) * 0.20); font-weight: 800; color: #4a3a28; line-height: 1; }
-.card .v-alt.underlined { text-underline-offset: 2px; }
+.card .v-main { position: absolute; top: calc(var(--cw, 74px) * 0.068); left: calc(var(--cw, 74px) * 0.081); font-size: calc(var(--cw, 74px) * 0.54); font-weight: 900; color: #2b1d10; line-height: 1; }
+.card .v-main.d2 { font-size: calc(var(--cw, 74px) * 0.432); top: calc(var(--cw, 74px) * 0.068); }
 .card .v-sub { position: absolute; bottom: calc(var(--cw, 74px) * 0.068); right: calc(var(--cw, 74px) * 0.081); font-size: calc(var(--cw, 74px) * 0.243); font-weight: 800; color: #4a3a28; transform: rotate(180deg); line-height: 1; }
 .card .underlined { text-decoration: underline; text-underline-offset: 4px; }
 .card.small { width: 56px; height: 80px; }
-.card.small .v-main { font-size: 29px; top: 2px; left: 2px; }
-.card.small .v-main.d2 { font-size: 24px; top: 2px; }
-.card.small .v-alt { font-size: 11px; top: 37px; left: 2px; }
+.card.small .v-main { font-size: 29px; top: 3px; left: 5px; }
+.card.small .v-main.d2 { font-size: 24px; top: 5px; }
 .card.small .v-sub { font-size: 13px; bottom: 3px; right: 5px; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.55), 0 3px 8px rgba(0,0,0,0.3); position: relative; top: -5px; }
 .card.show-edge { outline: 3px dashed var(--gold); outline-offset: 2px; }
@@ -253,9 +255,8 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 
 @media (max-width: 480px), (orientation: landscape) and (max-height: 520px) {
   .card { width: 58px; height: 82px; }
-  .card .v-main { font-size: 26px; top: 2px; left: 2px; }
-  .card .v-main.d2 { font-size: 21px; top: 2px; }
-  .card .v-alt { font-size: 12px; top: 35px; left: 2px; }
+  .card .v-main { font-size: 26px; top: 4px; left: 5px; }
+  .card .v-main.d2 { font-size: 21px; top: 6px; }
   .card .v-sub { font-size: 12px; bottom: 4px; right: 5px; }
 
   /* 手牌叠放（扇形）：右边牌叠在左边牌上，只露左上角数字 */

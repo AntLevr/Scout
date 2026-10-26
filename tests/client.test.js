@@ -6,7 +6,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function setup() {
-  const elements = new Map(), handlers = {}, storage = new Map();
+  const elements = new Map(), handlers = {}, storage = new Map(), timers = new Map(), documentEvents = {};
+  let timerId = 0;
   class Element {
     constructor() {
       this.children = []; this.events = {}; this.dataset = {}; this.value = '';
@@ -34,11 +35,11 @@ function setup() {
   for (const match of html.matchAll(/id="([^"]+)"/g)) elements.set(match[1], new Element());
   const socket = { connected: true, on: (event, fn) => { handlers[event] = fn; }, emit() {}, disconnect() { this.connected = false; } };
   const ctx = vm.createContext({ io: () => socket,
-    document: { getElementById: (id) => { assert(elements.has(id), `Missing element: ${id}`); return elements.get(id); }, createElement: () => new Element(), createTextNode: (text) => ({ textContent: text }), addEventListener() {}, hidden: false },
+    document: { getElementById: (id) => { assert(elements.has(id), `Missing element: ${id}`); return elements.get(id); }, createElement: () => new Element(), createTextNode: (text) => ({ textContent: text }), addEventListener: (event, fn) => { documentEvents[event] = fn; }, hidden: false },
     window: { innerWidth: 390, innerHeight: 844, addEventListener() {}, matchMedia: () => ({ matches: true }) },
     location: { href: 'http://localhost:3127/?room=TEST' }, URL, console,
     localStorage: { getItem: (key) => storage.get(key) || null, setItem: (k, v) => storage.set(k, v) },
-    setTimeout: () => 1, clearTimeout() {}, setInterval() {}, requestAnimationFrame: (f) => { f(); return 1; },
+    setTimeout: (fn) => { timers.set(++timerId, fn); return timerId; }, clearTimeout: (id) => timers.delete(id), setInterval() {}, requestAnimationFrame: (f) => { f(); return 1; },
     fetch: () => Promise.resolve(), navigator: {}, getComputedStyle: () => ({ gap: '6px' }),
   });
   vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../public/app.js'), 'utf8'), ctx);
@@ -46,7 +47,7 @@ function setup() {
     mustShow: false, settings: { hostOnly: true }, results: [], players: [0, 1, 2].map((idx) => ({ idx, name: idx ? 'B' : '<b>A</b>', handCount: 2, scorePileCount: 0, chips: 0, totalScore: 0, scoutShowUsed: false, connected: true, isHost: idx === 0 })),
     currentShow: { ownerIdx: 1, type: 'set', length: 1, top: 3, cards: [{ value: 3, other: 7 }] } },
     private: { yourIdx: 0, canScout: true, scoutShowUsed: false, hand: [{ id: 1, a: 1, b: 2, up: 'a', value: 1 }] } });
-  return { ctx, elements, handlers, data, socket };
+  return { ctx, elements, handlers, data, socket, timers, documentEvents };
 }
 
 test('invite code is prefilled and stats no longer show combo token', () => {
@@ -88,4 +89,26 @@ test('disconnect disables gameplay and clears incomplete actions', () => {
   assert.equal(elements.get('actions').children.length, 0);
   assert.equal(elements.get('chat-send').disabled, true);
   assert.equal(vm.runInContext('S.sessionActive', ctx), false);
+});
+
+test('long press previews full card, suppresses selection, and cancels on release or movement', () => {
+  const { ctx, elements, handlers, data, timers, documentEvents } = setup();
+  handlers.state(data());
+  const hand = elements.get('hand'), card = hand.children[0], preview = elements.get('card-preview');
+  const event = { isPrimary: true, button: 0, pointerId: 1, clientX: 10, clientY: 10, target: { closest: () => card } };
+  hand.events.pointerdown(event);
+  timers.get(vm.runInContext('cardHold.timer', ctx))();
+  assert.equal(preview.classList.contains('hidden'), false);
+  assert.equal(preview.children[0].dataset.value, 1);
+  assert.equal(preview.children[0].dataset.other, 2);
+  documentEvents.pointerup();
+  assert.equal(preview.classList.contains('hidden'), true);
+  let suppressed = false;
+  hand.events.click({ preventDefault() {}, stopImmediatePropagation() { suppressed = true; } });
+  assert.equal(suppressed, true);
+  hand.events.pointerdown(event);
+  const timer = vm.runInContext('cardHold.timer', ctx);
+  documentEvents.pointermove({ pointerId: 1, clientX: 40, clientY: 10 });
+  assert.equal(timers.has(timer), false);
+  assert.equal(vm.runInContext('suppressCardClick', ctx), false);
 });

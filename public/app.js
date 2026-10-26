@@ -78,6 +78,8 @@ function cardEl(value, extra = {}) {
   const el = document.createElement('div');
   el.className = 'card' + (extra.small ? ' small' : '') + (extra.cls ? ' ' + extra.cls : '');
   if (extra.idx != null) el.dataset.idx = extra.idx;
+  el.dataset.value = value;
+  if (extra.sub != null) el.dataset.other = extra.sub;
 
   // 两半颜色：左上 = 当前朝向数字，右下 = 背面数字
   const aColor = NUMBER_COLORS[value] || '#fdf6e3';
@@ -92,11 +94,6 @@ function cardEl(value, extra = {}) {
   el.appendChild(main);
 
   if (extra.sub != null) {
-    const alternate = document.createElement('div');
-    alternate.className = 'v-alt';
-    if (extra.sub === 6 || extra.sub === 9) alternate.classList.add('underlined');
-    alternate.textContent = extra.sub;
-    el.appendChild(alternate);
     const sub = document.createElement('div');
     sub.className = 'v-sub';
     if (extra.sub === 6 || extra.sub === 9) sub.classList.add('underlined');
@@ -118,6 +115,47 @@ function copyText(text, message = '已复制房间码') {
     document.body.removeChild(ta);
   }
 }
+
+/* 移动端长按查看完整手牌，不改变选择或手牌朝向。 */
+let cardHold = null;
+let suppressCardClick = false;
+function closeCardPreview() {
+  if (cardHold) clearTimeout(cardHold.timer);
+  cardHold = null;
+  $('card-preview').classList.add('hidden');
+  $('card-preview').replaceChildren();
+}
+$('hand').addEventListener('pointerdown', (event) => {
+  if (!event.isPrimary || event.button !== 0 || (!isMobileLayout() && event.pointerType !== 'touch')) return;
+  closeCardPreview();
+  suppressCardClick = false;
+  const card = event.target.closest('.card');
+  if (!card) return;
+  cardHold = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  cardHold.timer = setTimeout(() => {
+    if (!cardHold) return;
+    suppressCardClick = true;
+    const preview = $('card-preview');
+    preview.appendChild(cardEl(Number(card.dataset.value), { sub: Number(card.dataset.other) }));
+    preview.classList.remove('hidden');
+  }, 300);
+});
+document.addEventListener('pointermove', (event) => {
+  if (cardHold && event.pointerId === cardHold.id && Math.hypot(event.clientX - cardHold.x, event.clientY - cardHold.y) > 10) closeCardPreview();
+});
+document.addEventListener('pointerup', closeCardPreview);
+document.addEventListener('pointercancel', closeCardPreview);
+window.addEventListener('blur', closeCardPreview);
+window.addEventListener('resize', closeCardPreview);
+$('hand').addEventListener('scroll', closeCardPreview);
+$('hand').addEventListener('click', (event) => {
+  if (!suppressCardClick) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+}, true);
+$('hand').addEventListener('contextmenu', (event) => {
+  if (isMobileLayout() || cardHold) event.preventDefault();
+});
 
 /* ---------------- 规则文本 ---------------- */
 
@@ -338,6 +376,7 @@ function renderMyArea(room, me) {
 }
 
 function renderOrientHand(me) {
+  closeCardPreview();
   const hand = $('hand');
   hand.innerHTML = '';
   me.hand.forEach((c) => {
@@ -370,6 +409,7 @@ function isContiguous(arr) {
 }
 
 function renderHand(room, me) {
+  closeCardPreview();
   const hand = $('hand');
   hand.innerHTML = '';
   const inserting = S.scout && S.scout.step === 'insert';
