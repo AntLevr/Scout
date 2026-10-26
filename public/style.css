@@ -205,8 +205,6 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 .card.small .v-sub { font-size: 13px; bottom: 3px; right: 5px; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.55), 0 3px 8px rgba(0,0,0,0.3); position: relative; top: -5px; }
 .card.show-edge { outline: 3px dashed var(--gold); outline-offset: 2px; }
-.card.show-muted { opacity: .35; }
-.card.scout-source { opacity: .45; outline: 2px dashed var(--gold); outline-offset: 2px; }
 .card.flipped-note { background: #fff3d6; }
 
 /* ---------------- 我的手牌区 ---------------- */
@@ -221,15 +219,7 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 .hand .card { flex: 0 0 auto; }
 .hand .card:first-child { margin-left: auto; }
 .hand .card:last-child { margin-right: auto; }
-.hand.scout-inserting { gap: 0; padding-top: 28px; padding-bottom: 10px; }
-.hand.scout-inserting .card { margin: 0; }
-.insert-slot { flex: 0 0 28px; align-self: stretch; min-height: 82px; border: 0; border-radius: 8px; background: transparent; color: #f2b63d; font-size: 23px; cursor: pointer; touch-action: manipulation; }
-.insert-slot:hover, .insert-slot:focus-visible { background: rgba(242,182,61,.2); outline: 2px solid var(--gold); outline-offset: -2px; }
-.insert-slot.chosen { color: #fff0b5; background: rgba(242,182,61,.14); }
-.hand .pending-card { border: 2px dashed var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,.3); }
-.pending-label { position: absolute; top: -23px; left: 50%; transform: translateX(-50%); padding: 2px 5px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; background: var(--gold); color: #5b3a00; }
 .insert-marks { position: relative; min-height: 26px; margin-bottom: 2px; overflow: hidden; }
-.insert-marks:empty { display: none; }
 .insert-arrow { position: absolute; top: 2px; transform: translateX(-50%); width: 20px; height: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--gold); font-size: 16px; font-weight: 700; }
 .insert-arrow:hover { color: #fff; text-shadow: 0 0 6px rgba(242,182,61,0.95); }
 
