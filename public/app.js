@@ -303,31 +303,55 @@ function renderTurnHint(room, me) {
 function renderOpponents(room) {
   const el = $('opponents');
   el.innerHTML = '';
-  room.players.forEach((p) => {
-    if (p.idx === S.me.yourIdx) return;
+  const n = room.players.length;
+  const seats = { 2: ['north'], 3: ['west', 'east'], 4: ['west', 'north', 'east'], 5: ['west', 'north-west', 'north-east', 'east'] }[n] || [];
+  el.style.setProperty('--opponent-count', n - 1);
+  for (let offset = 1; offset < n; offset++) {
+    const p = room.players[(S.me.yourIdx + offset) % n];
+    const acting = room.phase === 'playing' && p.idx === room.currentIdx;
     const div = document.createElement('div');
-    div.className = 'opponent' + (p.idx === room.currentIdx ? ' active' : '');
+    div.className = 'opponent seat-' + seats[offset - 1] + (acting ? ' active' : '') + (!p.connected ? ' offline' : '');
+    div.setAttribute('aria-label', `${p.idx + 1}号位 ${p.name}，手牌${p.handCount}张，总分${p.totalScore}${acting ? '，行动中' : ''}${!p.connected ? '，离线' : ''}`);
+    const header = document.createElement('div');
+    header.className = 'opponent-heading';
+    const seat = document.createElement('span');
+    seat.className = 'seat-number'; seat.textContent = p.idx + 1;
     const name = document.createElement('div');
-    name.className = 'oname';
-    name.textContent = p.name;
-    const row = document.createElement('div');
-    row.className = 'orow';
-    row.textContent = `手牌 ${p.handCount} · 筹码 ${p.chips} · 得分 ${p.scorePileCount} · 总分 ${p.totalScore}`;
-    div.appendChild(name);
-    div.appendChild(row);
-    if (p.idx === room.currentShow?.ownerIdx) {
-      const b = document.createElement('div');
-      b.className = 'obadge';
-      b.textContent = '🎪 表演中';
-      div.appendChild(b);
-    } else if (!p.scoutShowUsed && room.players.length !== 2) {
-      const b = document.createElement('div');
-      b.className = 'obadge';
-      b.textContent = '✨ 挖角+表演';
-      div.appendChild(b);
+    name.className = 'oname'; name.textContent = p.name; name.title = p.name;
+    header.append(seat, name);
+    if (n !== 2) {
+      const star = document.createElement('span');
+      star.className = 'combo-star' + (p.scoutShowUsed ? ' used' : '');
+      star.textContent = '✦';
+      star.title = p.scoutShowUsed ? '挖角＋表演：本轮已用' : '挖角＋表演：可用';
+      star.setAttribute('aria-label', star.title);
+      header.appendChild(star);
     }
+    const numbers = document.createElement('div');
+    numbers.className = 'opponent-numbers';
+    const hand = document.createElement('div');
+    hand.className = 'opponent-hand';
+    hand.textContent = `🃏 ${p.handCount} 张`;
+    const score = document.createElement('div');
+    score.className = 'opponent-score';
+    score.textContent = `总分 ${p.totalScore > 0 ? '+' : ''}${p.totalScore}`;
+    numbers.append(hand, score);
+    const details = document.createElement('div');
+    details.className = 'opponent-details';
+    details.textContent = `得分牌 ${p.scorePileCount} · 筹码 ${p.chips}`;
+    const statuses = document.createElement('div');
+    statuses.className = 'opponent-statuses';
+    const badge = (text, cls) => {
+      const item = document.createElement('span'); item.className = 'player-badge ' + cls;
+      item.textContent = text; statuses.appendChild(item);
+    };
+    if (!p.connected) badge('离线', 'offline-badge');
+    if (acting) badge('行动中', 'acting-badge');
+    if (p.idx === room.currentShow?.ownerIdx) badge('🎪 表演中', 'show-badge');
+    if (room.phase === 'orient') badge(p.confirmed ? '已确认' : '整理中', 'orient-badge');
+    div.append(header, numbers, details, statuses);
     el.appendChild(div);
-  });
+  }
 }
 
 function renderTable(room) {
@@ -369,6 +393,7 @@ function renderTable(room) {
 }
 
 function renderMyArea(room, me) {
+  $('myarea').classList.toggle('my-turn', room.phase === 'playing' && room.currentIdx === me.yourIdx);
   $('my-captured').textContent = room.players[me.yourIdx].scorePileCount;
   $('my-chips').textContent = room.players[me.yourIdx].chips;
   $('my-total').textContent = room.players[me.yourIdx].totalScore;

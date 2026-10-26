@@ -116,3 +116,25 @@ test('long press previews full card, suppresses selection, and cancels on releas
   assert.equal(timers.has(timer), false);
   assert.equal(vm.runInContext('suppressCardClick', ctx), false);
 });
+
+test('opponent seating is relative to self and stays stable across turns', () => {
+  const { ctx, elements, handlers, data } = setup();
+  const state = data();
+  state.public.players = Array.from({ length: 5 }, (_, idx) => ({ ...state.public.players[0], idx, name: `P${idx}`, connected: idx !== 3, scoutShowUsed: idx === 4 }));
+  state.private.yourIdx = 2;
+  state.public.currentIdx = 3;
+  state.public.currentShow.ownerIdx = 3;
+  handlers.state(state);
+  let cards = elements.get('opponents').children;
+  assert.deepEqual(cards.map((c) => c.children[0].children[1].textContent), ['P3', 'P4', 'P0', 'P1']);
+  assert(cards[0].className.includes('seat-west active offline'));
+  assert.equal(cards[0].children[3].children.length, 3);
+  assert.equal(cards[1].children[0].children[2].className, 'combo-star used');
+  state.public.currentIdx = 2; handlers.state(state);
+  cards = elements.get('opponents').children;
+  assert.deepEqual(cards.map((c) => c.children[0].children[1].textContent), ['P3', 'P4', 'P0', 'P1']);
+  assert.equal(elements.get('myarea').classList.contains('my-turn'), true);
+  state.public.phase = 'orient'; handlers.state(state);
+  assert.equal(elements.get('myarea').classList.contains('my-turn'), false);
+  assert.equal(vm.runInContext('S.me.yourIdx', ctx), 2);
+});

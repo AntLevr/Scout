@@ -142,29 +142,45 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 #turn-hint.turn-flash { background: var(--gold); color: #5b3a00; }
 
 /* ---------------- 对手区 ---------------- */
-.opponents { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 12px; }
-.opponent {
-  background: rgba(255,255,255,0.12);
-  border: 2px solid rgba(255,255,255,0.18);
-  border-radius: 14px; padding: 10px 14px; min-width: 120px;
-  color: #fdf6e3; text-align: center; transition: border-color 0.15s;
-}
-.opponent.active { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.35); }
-.opponent .oname { font-weight: 800; font-size: 14px; }
-.opponent .orow { font-size: 12px; opacity: 0.9; margin-top: 2px; }
-.opponent .obadge { font-size: 11px; color: #5b3a00; background: var(--gold); border-radius: 20px; padding: 1px 8px; display: inline-block; margin-top: 4px; }
+.game-board { flex: 1 0 auto; width: 100%; max-width: 1200px; align-self: center; display: grid; grid-template-columns: minmax(130px, 180px) minmax(280px, 1fr) minmax(130px, 180px); grid-template-rows: auto minmax(150px, 1fr); gap: 14px; padding: 14px; align-items: center; }
+.opponents { display: contents; }
+.opponent { width: 100%; min-width: 0; background: rgba(0,0,0,.22); border: 2px solid rgba(255,255,255,.2); border-radius: 14px; padding: 12px; color: #fdf6e3; transition: border-color .15s, box-shadow .15s; }
+.opponent.active { border-color: var(--gold); background: rgba(106,77,15,.55); box-shadow: 0 0 0 3px rgba(242,182,61,.22); }
+.opponent.offline { opacity: .6; }
+.opponent-heading { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.seat-number { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.15); font-size: 12px; font-weight: 700; }
+.opponent .oname { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-size: 16px; }
+.combo-star { color: var(--gold); font-size: 19px; flex-shrink: 0; }
+.combo-star.used { color: #a0aaa4; opacity: .5; }
+.opponent-numbers { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; margin-top: 10px; }
+.opponent-hand { font-size: 20px; font-weight: 800; }
+.opponent-score { font-size: 13px; color: #ffe0a0; font-weight: 700; }
+.opponent-details { font-size: 12px; color: #cde0d5; margin-top: 5px; }
+.opponent-statuses { display: flex; flex-wrap: wrap; gap: 4px; min-height: 22px; margin-top: 8px; }
+.player-badge { font-size: 11px; padding: 2px 6px; border-radius: 12px; }
+.acting-badge { background: var(--gold); color: #5b3a00; font-weight: 800; }
+.show-badge { background: #7054a5; color: #fff; }
+.offline-badge { background: #59635e; color: #fff; }
+.orient-badge { background: rgba(255,255,255,.13); }
+.seat-west { grid-column: 1; grid-row: 2; }
+.seat-east { grid-column: 3; grid-row: 2; }
+.seat-north { grid-column: 2; grid-row: 1; justify-self: center; max-width: 180px; }
+.seat-north-west { grid-column: 2; grid-row: 1; justify-self: start; max-width: min(46%, 180px); }
+.seat-north-east { grid-column: 2; grid-row: 1; justify-self: end; max-width: min(46%, 180px); }
+.game-board > .table { grid-column: 2; grid-row: 2; min-width: 0; }
+.myarea.my-turn { box-shadow: inset 0 3px 0 var(--gold); }
 
 /* ---------------- 桌面（当前表演） ---------------- */
 .table { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; min-height: 150px; }
 .table-empty { color: rgba(253,246,227,0.75); text-align: center; }
-.table-show { text-align: center; color: #fdf6e3; }
+.table-show { max-width: 100%; text-align: center; color: #fdf6e3; }
 .table-show .show-owner { font-size: 14px; margin-bottom: 8px; }
 .show-type-badge {
   display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-left: 6px;
 }
 .show-type-badge.set { background: #7e57c2; }
 .show-type-badge.run { background: #2e7d32; }
-.show-cards { display: flex; gap: 8px; justify-content: center; margin: 4px 0 8px; }
+.show-cards { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 4px 0 8px; }
 
 /* ---------------- 卡牌 ---------------- */
 .card {
@@ -266,9 +282,10 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
   .topbar { flex-wrap: wrap; gap: 4px 10px; padding: 6px 10px; }
   .topbar-center { order: 3; width: 100%; text-align: center; font-size: 13px; }
 
-  .opponents { gap: 6px; padding: 8px; }
-  .opponent { min-width: 84px; padding: 6px 9px; }
+  .game-board { grid-template-columns: 130px minmax(220px, 1fr) 130px; gap: 8px; padding: 8px; }
+  .opponent { padding: 8px; }
   .opponent .oname { font-size: 13px; }
+  .opponent-hand { font-size: 17px; }
 
   .table { min-height: 108px; padding: 8px; }
 
@@ -278,4 +295,22 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 
   .actions { gap: 8px; }
   .hint { font-size: 12px; }
+}
+
+/* 竖屏时按固定座次放入顶部单排，保留手牌和桌面空间。 */
+@media (orientation: portrait) and (max-width: 768px) {
+  .game-board { display: flex; flex-direction: column; gap: 10px; padding: 8px; align-items: stretch; }
+  .opponents { display: grid; grid-template-columns: repeat(var(--opponent-count, 4), minmax(0, 1fr)); gap: 5px; }
+  .opponent { max-width: none; padding: 7px 5px; grid-column: auto; grid-row: auto; }
+  .opponent-heading { gap: 3px; }
+  .seat-number { width: 17px; height: 17px; font-size: 10px; }
+  .opponent .oname { font-size: 13px; }
+  .combo-star { font-size: 14px; }
+  .opponent-numbers { flex-direction: column; gap: 3px; margin-top: 6px; }
+  .opponent-hand { font-size: 17px; }
+  .opponent-score { font-size: 11px; }
+  .opponent-details { font-size: 10px; white-space: normal; }
+  .opponent-statuses { margin-top: 5px; min-height: 36px; align-content: flex-start; }
+  .player-badge { font-size: 10px; padding: 2px 4px; }
+  .game-board > .table { flex: 1; }
 }
