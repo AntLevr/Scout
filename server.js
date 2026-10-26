@@ -390,11 +390,10 @@ function doScout(room, playerIdx, opts) {
   insertIndex = Math.max(0, Math.min(p.hand.length, insertIndex));
   p.hand.splice(insertIndex, 0, card);
 
+  // 表演主人（被侦察者）获得 1 个筹码（= 1 分，所有人数通用）
+  room.players[room.currentShow.ownerIdx].chips += 1;
   if (room.players.length === 2) {
-    p.chips -= 1; // 2 人局消耗筹码
-  } else {
-    // 3-5 人局：表演主人获得 1 个筹码
-    room.players[room.currentShow.ownerIdx].chips += 1;
+    p.chips -= 1; // 2 人局：侦察者额外消耗 1 个筹码
   }
   room.lastEvent = { type: 'scout', seq: ++room.eventSeq, targetIdx: playerIdx };
 
