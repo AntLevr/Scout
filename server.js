@@ -372,16 +372,16 @@ function doShow(room, playerIdx, indices) {
 }
 
 /* ------------------------------------------------------------------ *
- * 动作：侦察（取当前表演最左/最右一张牌）
+ * 动作：挖角（取当前表演最左/最右一张牌）
  * ------------------------------------------------------------------ */
 
 function doScout(room, playerIdx, opts) {
-  if (!room.currentShow) return { ok: false, msg: '当前没有可侦察的表演' };
+  if (!room.currentShow) return { ok: false, msg: '当前没有可挖角的表演' };
   const p = room.players[playerIdx];
 
   if (room.players.length === 2) {
-    // 2 人变体：侦察需消耗自己 1 个筹码
-    if (p.chips <= 0) return { ok: false, msg: '没有筹码可用来侦察' };
+    // 2 人变体：挖角需消耗自己 1 个筹码
+    if (p.chips <= 0) return { ok: false, msg: '没有筹码可用来挖角' };
   }
 
   const edge = opts.edge === 'right' ? 'right' : 'left';
@@ -396,10 +396,10 @@ function doScout(room, playerIdx, opts) {
   insertIndex = Math.max(0, Math.min(p.hand.length, insertIndex));
   p.hand.splice(insertIndex, 0, card);
 
-  // 表演主人（被侦察者）获得 1 个筹码（= 1 分，所有人数通用）
+  // 表演主人（被挖角者）获得 1 个筹码（= 1 分，所有人数通用）
   room.players[room.currentShow.ownerIdx].chips += 1;
   if (room.players.length === 2) {
-    p.chips -= 1; // 2 人局：侦察者额外消耗 1 个筹码
+    p.chips -= 1; // 2 人局：挖角者额外消耗 1 个筹码
   }
   room.lastEvent = { type: 'scout', seq: ++room.eventSeq, targetIdx: playerIdx };
 
@@ -420,20 +420,20 @@ function doScout(room, playerIdx, opts) {
 
   if (scoutShow && !p.scoutShowUsed && room.players.length !== 2) {
     p.scoutShowUsed = true;
-    // 侦察后能否表演：无当前表演则单张即可；有表演则需能压过
+    // 挖角后能否表演：无当前表演则单张即可；有表演则需能压过
     const canShow = (room.currentShow === null) || canBeatCurrentShow(room, playerIdx);
     if (canShow) {
       room.mustShow = true; // 该玩家必须立即表演
       return { ok: true, scoutShowTriggered: true };
     }
-    // 侦察后仍无法表演：退还 token，按普通侦察结束回合
+    // 挖角后仍无法表演：退还 token，按普通挖角结束回合
     p.scoutShowUsed = false;
     nextTurn(room);
     return { ok: true };
   }
 
   if (room.players.length === 2) {
-    // 2 人局：侦察后该玩家再次行动（不换人）
+    // 2 人局：挖角后该玩家再次行动（不换人）
     if (room.currentShow === null) room.mustShow = true;
     else room.mustShow = false;
     checkTwoPlayerStuck(room);
@@ -445,7 +445,7 @@ function doScout(room, playerIdx, opts) {
 }
 
 /* ------------------------------------------------------------------ *
- * 客户端查卡：侦察前获取当前表演某侧卡牌的完整两面
+ * 客户端查卡：挖角前获取当前表演某侧卡牌的完整两面
  * ------------------------------------------------------------------ */
 
 function scoutPreview(room, playerIdx, edge) {
@@ -608,7 +608,7 @@ io.on('connection', (socket) => {
       return;
     }
     if (!room.currentShow) {
-      if (typeof ack === 'function') ack({ ok: false, message: '当前没有可侦察的表演' });
+      if (typeof ack === 'function') ack({ ok: false, message: '当前没有可挖角的表演' });
       return;
     }
     const r = doScout(room, idx, payload || {});

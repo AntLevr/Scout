@@ -177,7 +177,7 @@ html, body {
 .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 .hint { text-align: center; color: rgba(253,246,227,0.8); font-size: 13px; margin-top: 8px; min-height: 18px; }
 
-/* 侦察插入模式：展开手牌显示插入槽 */
+/* 挖角插入模式：展开手牌显示插入槽 */
 .ss-label { display: flex; align-items: center; gap: 6px; color: #fdf6e3; font-size: 13px; cursor: pointer; }
 
 /* ---------------- 弹窗 ---------------- */
@@ -198,7 +198,7 @@ html, body {
 .modal .modal-actions { display: flex; gap: 10px; margin-top: 16px; }
 .modal .modal-actions .btn { flex: 1; }
 
-/* 侦察弹窗 */
+/* 挖角弹窗 */
 .scout-card-pick { display: flex; gap: 14px; justify-content: center; margin: 10px 0; }
 .scout-card-pick .card { cursor: pointer; }
 .orient-pick { display: flex; gap: 14px; justify-content: center; margin: 10px 0; }

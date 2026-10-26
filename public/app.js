@@ -9,7 +9,7 @@ const S = {
   playerId: localStorage.getItem('scout-playerId') || null,
   name: localStorage.getItem('scout-name') || '',
   selected: [], // 已选中的手牌索引（升序）
-  scout: null, // 侦察弹窗状态机
+  scout: null, // 挖角弹窗状态机
   lastEventSeq: null, // 已播放的音效事件序号
 };
 
@@ -117,14 +117,14 @@ const RULES_HTML = `
 <h3>🎪 表演（Show）</h3>
 <ul>
 <li>打出相邻的若干张牌，组成<strong>顺子</strong>（连续数字，可升可降）或<strong>同数</strong>（相同数字）。</li>
-<li>必须压过当前表演：<strong>张数多者胜</strong>；张数相同比<strong>最大数字</strong>；再相同则<strong>同数 &gt; 顺子</strong>。</li>
+<li>必须压过当前表演：<strong>张数多者胜</strong>；张数相同先比<strong>同数 &gt; 顺子</strong>，再比<strong>最大数字</strong>。</li>
 <li>被你压过的表演牌全部归你，每张 +1 分。</li>
 </ul>
-<h3>🕵️ 侦察（Scout）</h3>
+<h3>🕵️ 挖角（Scout）</h3>
 <ul>
 <li>从当前表演的<strong>最左或最右</strong>拿 1 张牌，以<strong>任意朝向、任意位置</strong>插入手牌。</li>
 <li>表演主人获得 1 个筹码（+1 分）。</li>
-<li>「✨ 侦察+表演」：每轮一次，侦察后可以立即表演。</li>
+<li>「✨ 挖角+表演」：每轮一次，挖角后可以立即表演。</li>
 </ul>
 <h3>🏁 一轮结束</h3>
 <ul>
@@ -132,7 +132,7 @@ const RULES_HTML = `
 <li>计分：每张得分牌 +1、每个筹码 +1、每张剩余手牌 −1（表演存活者手牌不扣）。</li>
 </ul>
 <h3>👥 2 人变体</h3>
-<p>每人发 11 张牌、3 个筹码。侦察需<strong>消耗自己 1 个筹码</strong>，且侦察后<strong>再次行动</strong>；没有筹码时必须表演，无法压过则判负。</p>
+<p>每人发 11 张牌、3 个筹码。挖角需<strong>消耗自己 1 个筹码</strong>，且挖角后<strong>再次行动</strong>；没有筹码时必须表演，无法压过则判负。</p>
 </div>`;
 
 /* ---------------- 加入 / 大厅 ---------------- */
@@ -254,7 +254,7 @@ function renderOpponents(room) {
     } else if (!p.scoutShowUsed && room.players.length !== 2) {
       const b = document.createElement('div');
       b.className = 'obadge';
-      b.textContent = '✨ 侦察+表演';
+      b.textContent = '✨ 挖角+表演';
       div.appendChild(b);
     }
     el.appendChild(div);
@@ -293,7 +293,7 @@ function renderTable(room) {
   if (S.scout && S.scout.step === 'pick') {
     const hint = document.createElement('div');
     hint.className = 'hint';
-    hint.textContent = '点击最左或最右的一张牌进行侦察';
+    hint.textContent = '点击最左或最右的一张牌进行挖角';
     wrap.appendChild(hint);
   }
   el.appendChild(wrap);
@@ -306,7 +306,7 @@ function renderMyArea(room, me) {
   const ss = $('my-ss-token');
   ss.classList.toggle('tok', true);
   ss.classList.toggle('used', me.scoutShowUsed || room.players.length === 2);
-  ss.textContent = room.players.length === 2 ? '🪙 侦察消耗1筹码' : (me.scoutShowUsed ? '✨ 侦察+表演（已用）' : '✨ 侦察+表演（可用）');
+  ss.textContent = room.players.length === 2 ? '🪙 挖角消耗1筹码' : (me.scoutShowUsed ? '✨ 挖角+表演（已用）' : '✨ 挖角+表演（可用）');
 
   if (room.phase === 'orient') {
     renderOrientHand(me);
@@ -436,15 +436,15 @@ function renderActions(room, me) {
   const myTurn = room.currentIdx === me.yourIdx;
   if (!myTurn) {
     $('action-hint').textContent = '等待其他玩家行动…';
-    return; // 非自己回合：不显示表演/侦察按钮
+    return; // 非自己回合：不显示表演/挖角按钮
   }
 
-  // 侦察进行中
+  // 挖角进行中
   if (S.scout) {
     if (S.scout.step === 'pick') {
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'btn btn-ghost';
-      cancelBtn.textContent = '✖ 取消侦察';
+      cancelBtn.textContent = '✖ 取消挖角';
       cancelBtn.addEventListener('click', cancelScout);
       actions.appendChild(cancelBtn);
     } else if (S.scout.step === 'insert') {
@@ -465,7 +465,7 @@ function renderActions(room, me) {
       preview.addEventListener('click', flipScoutCard);
       actions.appendChild(preview);
 
-      // 侦察+表演
+      // 挖角+表演
       const canSS = room.players.length !== 2 && !me.scoutShowUsed;
       if (canSS) {
         const label = document.createElement('label');
@@ -475,7 +475,7 @@ function renderActions(room, me) {
         chk.checked = S.scout.scoutShow;
         chk.addEventListener('change', (e) => { S.scout.scoutShow = e.target.checked; });
         label.appendChild(chk);
-        label.appendChild(document.createTextNode(' ✨ 侦察+表演'));
+        label.appendChild(document.createTextNode(' ✨ 挖角+表演'));
         actions.appendChild(label);
       }
 
@@ -502,7 +502,7 @@ function renderActions(room, me) {
 
   const scoutBtn = document.createElement('button');
   scoutBtn.className = 'btn btn-gold';
-  scoutBtn.textContent = room.players.length === 2 ? '🕵️ 侦察（消耗筹码）' : '🕵️ 侦察';
+  scoutBtn.textContent = room.players.length === 2 ? '🕵️ 挖角（消耗筹码）' : '🕵️ 挖角';
   scoutBtn.disabled = !me.canScout;
   scoutBtn.addEventListener('click', startScout);
   actions.appendChild(scoutBtn);
@@ -510,7 +510,7 @@ function renderActions(room, me) {
   if (room.mustShow) {
     $('action-hint').textContent = '必须表演：请选择手牌打出。';
   } else if (S.selected.length === 0) {
-    $('action-hint').textContent = '选择要打出的牌，或点击「侦察」挖角。';
+    $('action-hint').textContent = '选择要打出的牌，或点击「挖角」。';
   }
 }
 
@@ -523,20 +523,20 @@ function doShow() {
   S.selected = [];
 }
 
-/* ---------------- 侦察（内联交互，无弹窗） ---------------- */
+/* ---------------- 挖角（内联交互，无弹窗） ---------------- */
 
 function startScout() {
   S.selected = [];
   S.scout = { step: 'pick', edge: null, card: null, up: null, scoutShow: false };
   renderHand(S.room, S.me);
   renderTable(S.room);
-  $('action-hint').textContent = '🕵️ 点击当前表演最左或最右的一张牌；再点一次「侦察」可取消。';
+  $('action-hint').textContent = '🕵️ 点击当前表演最左或最右的一张牌；再点一次「挖角」可取消。';
   renderActions(S.room, S.me);
 }
 
 function pickScoutEdge(edge) {
   socket.emit('scoutPreview', { edge }, (ack) => {
-    if (!ack || !ack.ok) { toast('无法侦察'); return; }
+    if (!ack || !ack.ok) { toast('无法挖角'); return; }
     S.scout.edge = ack.edge;
     S.scout.card = ack.card;
     S.scout.up = (ack.card.value === ack.card.a) ? 'a' : 'b';
@@ -570,7 +570,7 @@ function cancelScout() {
   renderHand(S.room, S.me);
   renderActions(S.room, S.me);
   renderInsertMarks();
-  $('action-hint').textContent = '选择要打出的牌，或点击「侦察」挖角。';
+  $('action-hint').textContent = '选择要打出的牌，或点击「挖角」。';
 }
 
 /* ---------------- 结算弹窗 ---------------- */
@@ -795,7 +795,7 @@ socket.on('state', (data) => {
     notifyMyTurn();
   }
 
-  // 阶段切换时重置选中与侦察状态
+  // 阶段切换时重置选中与挖角状态
   if (S.room.phase !== 'playing') { S.selected = []; if (S.scout && S.scout.step === 'pick') S.scout = null; }
   render();
 });
