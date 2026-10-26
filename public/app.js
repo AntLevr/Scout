@@ -762,11 +762,14 @@ socket.on('state', (data) => {
   S.room = data.public;
   S.me = data.private;
 
-  // 音效：按事件序号播放
+  // 音效：按事件序号播放（只给目标玩家播放）
   const ev = S.room.lastEvent;
   if (ev && ev.seq) {
     if (S.lastEventSeq == null) S.lastEventSeq = ev.seq;
-    else if (ev.seq > S.lastEventSeq) { S.lastEventSeq = ev.seq; playSfx(ev.type); }
+    else if (ev.seq > S.lastEventSeq) {
+      S.lastEventSeq = ev.seq;
+      if (ev.targetIdx === S.me.yourIdx) playSfx(ev.type);
+    }
   }
 
   // 游戏模式标记（移动端横屏提示用）

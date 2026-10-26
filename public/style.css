@@ -153,7 +153,7 @@ html, body {
 .card.small .v-main { font-size: 29px; top: 3px; left: 5px; }
 .card.small .v-main.d2 { font-size: 24px; top: 5px; }
 .card.small .v-sub { font-size: 13px; bottom: 3px; right: 5px; }
-.card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.55), 0 3px 8px rgba(0,0,0,0.3); transform: translateY(-6px); }
+.card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.55), 0 3px 8px rgba(0,0,0,0.3); position: relative; top: -5px; }
 .card.show-edge { outline: 3px dashed var(--gold); outline-offset: 2px; }
 .card.flipped-note { background: #fff3d6; }
 
@@ -180,7 +180,7 @@ html, body {
 .hand.inserting .card { margin-left: 0; width: var(--cw, 74px); height: calc(var(--cw, 74px) * 1.4054); }
 .hand.inserting .card:first-child { margin-left: 0; }
 .hand.inserting .card:last-child { margin-right: 0; }
-.hand.inserting .card.selected { transform: none; }
+.hand.inserting .card.selected { top: 0; }
 .hand.inserting .card .v-main { font-size: calc(var(--cw, 74px) * 0.54); }
 .hand.inserting .card .v-main.d2 { font-size: calc(var(--cw, 74px) * 0.432); }
 .hand.inserting .card .v-sub { font-size: calc(var(--cw, 74px) * 0.243); }
@@ -232,7 +232,6 @@ html, body {
   .hand .card { margin-left: -26px; }
   .hand .card:first-child { margin-left: 0; }
   .hand .card:last-child { margin-right: 0; }
-  .card.selected { transform: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.75); }
 
   .topbar { flex-wrap: wrap; gap: 4px 10px; padding: 6px 10px; }
   .topbar-center { order: 3; width: 100%; text-align: center; font-size: 13px; }

@@ -235,7 +235,7 @@ function error(socket, message) {
 
 function endRound(room, kind, winnerIdx) {
   room.phase = 'roundEnd';
-  room.lastEvent = { type: 'score', seq: ++room.eventSeq };
+  room.lastEvent = { type: 'score', seq: ++room.eventSeq, targetIdx: winnerIdx };
   const detail = room.players.map((p, i) => {
     let penalty = p.hand.length;
     if ((kind === 'survived' || kind === 'twoPlayerStuck') && i === winnerIdx) penalty = 0; // 表演存活者手牌不扣分
@@ -353,7 +353,7 @@ function doShow(room, playerIdx, indices) {
     length: cards.length,
   };
   room.mustShow = false;
-  room.lastEvent = { type: 'show', seq: ++room.eventSeq };
+  room.lastEvent = { type: 'show', seq: ++room.eventSeq, targetIdx: playerIdx };
 
   if (p.hand.length === 0) {
     endRound(room, 'wentOut', playerIdx);
@@ -396,7 +396,7 @@ function doScout(room, playerIdx, opts) {
     // 3-5 人局：表演主人获得 1 个筹码
     room.players[room.currentShow.ownerIdx].chips += 1;
   }
-  room.lastEvent = { type: 'scout', seq: ++room.eventSeq };
+  room.lastEvent = { type: 'scout', seq: ++room.eventSeq, targetIdx: playerIdx };
 
   const scoutShow = !!opts.scoutShow;
 
