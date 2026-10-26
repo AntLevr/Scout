@@ -58,15 +58,29 @@ function showBeats(a, b) {
 
 const TYPE_CN = { set: '同数', run: '顺子' };
 
+// 每个数字一种颜色（用于牌的两半着色）
+const NUMBER_COLORS = {
+  1: '#f4b6b6', 2: '#f8c98f', 3: '#f5e080', 4: '#aad69a', 5: '#8fd0c2',
+  6: '#a0c6ea', 7: '#bca9de', 8: '#e6abc9', 9: '#dbc3a2', 10: '#bcc6d2',
+};
+
 function cardEl(value, extra = {}) {
   const el = document.createElement('div');
   el.className = 'card' + (extra.small ? ' small' : '') + (extra.cls ? ' ' + extra.cls : '');
   if (extra.idx != null) el.dataset.idx = extra.idx;
+
+  // 两半颜色：左上 = 当前朝向数字，右下 = 背面数字
+  const aColor = NUMBER_COLORS[value] || '#fdf6e3';
+  const bColor = (extra.sub != null ? NUMBER_COLORS[extra.sub] : aColor) || '#fdf6e3';
+  el.style.setProperty('--half-a', aColor);
+  el.style.setProperty('--half-b', bColor);
+
   const main = document.createElement('div');
-  main.className = 'v-main';
+  main.className = 'v-main' + (String(value).length > 1 ? ' d2' : '');
   if (value === 6 || value === 9) main.classList.add('underlined');
   main.textContent = value;
   el.appendChild(main);
+
   if (extra.sub != null) {
     const sub = document.createElement('div');
     sub.className = 'v-sub';
@@ -490,7 +504,10 @@ function renderScoutModal() {
     const v = k === 'a' ? a : b;
     const other = k === 'a' ? b : a;
     const cls = sc.up === k ? 'selected' : '';
-    orientHTML += `<div class="card ${cls}" id="orient-${k}" style="cursor:pointer">${cardEl(v, { sub: other }).innerHTML}</div>`;
+    const card = cardEl(v, { sub: other, cls });
+    card.id = 'orient-' + k;
+    card.style.cursor = 'pointer';
+    orientHTML += card.outerHTML;
   });
 
   const insertHTML = insertRowHTML(sc.insertIndex, me.hand);

@@ -136,7 +136,7 @@ html, body {
   position: relative;
   width: 74px; height: 104px;
   border-radius: 10px;
-  background: var(--card-bg);
+  background: linear-gradient(to bottom right, var(--half-a, #fdf6e3) 0%, var(--half-a, #fdf6e3) 50%, var(--half-b, #fdf6e3) 50%, var(--half-b, #fdf6e3) 100%);
   border: 2px solid #d9c9a6;
   box-shadow: 0 3px 8px rgba(0,0,0,0.3);
   cursor: pointer;
@@ -144,12 +144,14 @@ html, body {
   font-variant-numeric: tabular-nums;
   touch-action: none;
 }
-.card .v-main { position: absolute; top: 5px; left: 8px; font-size: 30px; font-weight: 900; color: var(--ink); line-height: 1; }
-.card .v-sub { position: absolute; bottom: 5px; right: 8px; font-size: 15px; font-weight: 700; color: #9c8357; transform: rotate(180deg); line-height: 1; }
-.card .underlined { text-decoration: underline; text-underline-offset: 3px; }
+.card .v-main { position: absolute; top: 4px; left: 6px; font-size: 40px; font-weight: 900; color: #2b1d10; line-height: 1; }
+.card .v-main.d2 { font-size: 32px; top: 6px; }
+.card .v-sub { position: absolute; bottom: 4px; right: 6px; font-size: 18px; font-weight: 800; color: #4a3a28; transform: rotate(180deg); line-height: 1; }
+.card .underlined { text-decoration: underline; text-underline-offset: 4px; }
 .card.small { width: 56px; height: 80px; }
-.card.small .v-main { font-size: 22px; top: 3px; left: 6px; }
-.card.small .v-sub { font-size: 11px; bottom: 3px; right: 6px; }
+.card.small .v-main { font-size: 29px; top: 3px; left: 5px; }
+.card.small .v-main.d2 { font-size: 24px; top: 5px; }
+.card.small .v-sub { font-size: 13px; bottom: 3px; right: 5px; }
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.55), 0 3px 8px rgba(0,0,0,0.3); transform: translateY(-6px); }
 .card.show-edge { outline: 3px dashed var(--gold); outline-offset: 2px; }
 .card.flipped-note { background: #fff3d6; }
@@ -207,7 +209,8 @@ html, body {
 
 @media (max-width: 560px) {
   .card { width: 60px; height: 86px; }
-  .card .v-main { font-size: 24px; top: 4px; left: 6px; }
-  .card .v-sub { font-size: 12px; bottom: 4px; right: 6px; }
+  .card .v-main { font-size: 30px; top: 3px; left: 5px; }
+  .card .v-main.d2 { font-size: 25px; top: 5px; }
+  .card .v-sub { font-size: 13px; bottom: 3px; right: 5px; }
   .hand { gap: 4px; }
 }
