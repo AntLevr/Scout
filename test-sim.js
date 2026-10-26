@@ -1,7 +1,7 @@
 'use strict';
 // 集成测试：验证 3 人局与 2 人局的关键流程
 const { io } = require('socket.io-client');
-const URL = 'http://localhost:3000';
+const URL = process.env.SCOUT_TEST_URL || 'http://localhost:3000';
 
 function connect() {
   const s = io(URL, { transports: ['websocket'], forceNew: true });
@@ -53,6 +53,7 @@ function findCombo(hand, minLen = 2) {
   check((await ack(c0, 'join', { room: code, name: 'A' })).ok, '3人局：A 加入');
   check((await ack(c1, 'join', { room: code, name: 'B' })).ok, '3人局：B 加入');
   check((await ack(c2, 'join', { room: code, name: 'C' })).ok, '3人局：C 加入');
+  for (const s of [c0, c1, c2]) await ack(s, 'ready', {});
   check((await ack(c0, 'startGame', {})).ok, '3人局：开始');
   await waitFor(c0, (s) => s.public.phase === 'orient', 'orient');
   check(c0.state.private.hand.length === 15, '3人局每人 15 张');
@@ -86,13 +87,16 @@ function findCombo(hand, minLen = 2) {
     check(c0.state.public.lastRound.kind === 'survived' && c0.state.public.lastRound.winnerIdx === 0, '存活者=玩家0（手牌不扣分）');
     const w = c0.state.public.lastRound.detail[0];
     check(w.penalty === 0, '存活者手牌 penalty=0');
-  } else {
+  } else if (comboLen === 2) {
     // 2 张组合：玩家2 挖角后表演被拿空 => 回到玩家0 且必须表演
     const sc2 = await ack(c2, 'scout', { edge: 'left', up: 'a', insertIndex: 0 });
     check(sc2.ok, '玩家2 挖角成功（拿空表演）');
     await waitFor(c0, (s) => s.public.currentIdx === 0 && s.public.currentShow === null, '回到玩家0且无表演');
     check(c0.state.public.mustShow === true, '表演被拿空后玩家0必须表演');
     check(c0.state.public.players[0].chips === 2, '玩家0 获 2 筹码');
+  } else {
+    check(c0.state.public.currentShow === null, '单张表演被挖空');
+    check((await ack(c2, 'show', { indices: [0] })).ok, '无表演时下一玩家重新表演');
   }
 
   [c0, c1, c2].forEach((s) => s.disconnect());
@@ -104,6 +108,7 @@ function findCombo(hand, minLen = 2) {
   const code2 = 'X' + String(Date.now()).slice(-3).replace(/\d/g, (d) => 'ABCDEFGHIJ'[d]);
   await ack(d0, 'join', { room: code2, name: 'X' });
   await ack(d1, 'join', { room: code2, name: 'Y' });
+  await ack(d0, 'ready', {}); await ack(d1, 'ready', {});
   check((await ack(d0, 'startGame', {})).ok, '2人局：开始（支持 2 人变体）');
   await waitFor(d0, (s) => s.public.phase === 'orient', '2p orient');
   check(d0.state.private.hand.length === 11 && d0.state.public.players[0].chips === 3, '2人局每人 11 张牌 + 3 筹码');

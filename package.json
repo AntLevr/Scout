@@ -4,7 +4,8 @@
   "description": "线上联机版《马戏星探》Scout - 桌游卡牌对战",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test tests/server.test.js tests/client.test.js"
   },
   "engines": {
     "node": "20.x"

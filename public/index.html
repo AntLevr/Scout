@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
+  <div id="connection-status" role="status">连接中…</div>
+  <button id="btn-sound" class="btn btn-mini sound-toggle">音效：开</button>
   <div id="app">
     <!-- ============ 大厅 ============ -->
     <section id="lobby" class="screen">
@@ -35,9 +37,12 @@
             房间码
             <div class="code-value" id="room-code-value">----</div>
             <button id="btn-copy" class="btn btn-mini">复制</button>
+            <button id="btn-invite" class="btn btn-mini">复制邀请链接</button>
           </div>
           <div class="player-list" id="lobby-players"></div>
           <div class="lobby-tip" id="lobby-tip">等待玩家加入（3–5 人）…</div>
+          <label class="room-setting"><input id="host-only" type="checkbox" checked /> 仅房主可开局或再来一局</label>
+          <button id="btn-ready" class="btn btn-gold btn-block">准备</button>
           <button id="btn-start" class="btn btn-primary btn-block hidden">开始游戏</button>
           <button id="btn-leave" class="btn btn-ghost btn-block">离开房间</button>
         </div>
@@ -70,7 +75,6 @@
           <div class="stat">🎪 得分牌 <b id="my-captured">0</b></div>
           <div class="stat" id="my-chips-stat">🪙 筹码 <b id="my-chips">0</b></div>
           <div class="stat">📈 总分 <b id="my-total">0</b></div>
-          <div class="stat" id="my-ss-token">✨ 挖角+表演</div>
         </div>
         <div id="insert-marks" class="insert-marks"></div>
         <div id="hand" class="hand"></div>
@@ -92,6 +96,9 @@
         <input id="chat-input" maxlength="200" placeholder="说点什么…（最多200字）" aria-label="聊天消息" autocomplete="off" />
         <button id="chat-send" class="btn btn-primary" type="submit">发送</button>
       </form>
+      <div class="quick-chat" id="quick-chat">
+        <button type="button">稍等一下</button><button type="button">好牌！</button><button type="button">轮到你啦</button>
+      </div>
       </div>
       <div id="game-logs" class="chat-messages hidden" role="tabpanel" aria-labelledby="logs-tab" tabindex="0"></div>
     </div>

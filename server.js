@@ -110,6 +110,8 @@ function newRoom(code) {
     lastEvent: null, // { type: 'show'|'scout'|'score', seq }
     chat: [],
     logs: [],
+    results: [],
+    settings: { hostOnly: true },
   };
 }
 
@@ -134,8 +136,10 @@ function playerIndexBySocket(room, socketId) {
 const DEAL_SIZE = { 2: 11, 3: 15, 4: 11, 5: 9 };
 
 function addLog(room, text) {
-  room.logs.push({ id: crypto.randomUUID(), time: Date.now(), text });
+  const entry = { id: crypto.randomUUID(), time: Date.now(), text };
+  room.logs.push(entry);
   if (room.logs.length > 200) room.logs.shift();
+  for (const p of room.players) io.sockets.sockets.get(p.socketId)?.emit('gameLog', entry);
 }
 
 function playerLabel(room, idx) {
@@ -164,7 +168,7 @@ function startRound(room) {
     for (let p = 0; p < n; p++) {
       if (c < deck.length) {
         const card = deck[c++];
-        card.up = 'a'; // 发牌时统一朝向
+        card.up = Math.random() < 0.5 ? 'a' : 'b'; // 每张牌独立随机朝向
         hands[p].push(card);
       }
     }
@@ -177,6 +181,7 @@ function startRound(room) {
     p.scoutShowUsed = false;
     p.confirmed = false;
     p.roundScore = 0;
+    p.ready = false;
   });
 }
 
@@ -207,6 +212,7 @@ function publicState(room) {
       confirmed: p.confirmed,
       connected: p.connected,
       isHost: p.id === room.hostId,
+      ready: !!p.ready,
     })),
     currentShow: room.currentShow
       ? {
@@ -218,8 +224,8 @@ function publicState(room) {
         }
       : null,
     lastRound: room.lastRound,
-    chat: room.chat,
-    logs: room.logs,
+    settings: room.settings,
+    results: room.results,
   };
 }
 
@@ -235,12 +241,13 @@ function privateState(room, playerIdx) {
 }
 
 function broadcast(room) {
+  const shared = publicState(room);
   for (let i = 0; i < room.players.length; i++) {
     const p = room.players[i];
     if (!p.socketId) continue;
     const sock = io.sockets.sockets.get(p.socketId);
     if (sock) {
-      sock.emit('state', { public: publicState(room), private: privateState(room, i) });
+      sock.emit('state', { public: shared, private: privateState(room, i) });
     }
   }
 }
@@ -280,6 +287,8 @@ function endRound(room, kind, winnerIdx) {
     winnerIdx,
     detail,
   };
+  room.results.push({ round: room.round, ...room.lastRound });
+  room.players.forEach((p) => { p.ready = false; });
   const reason = kind === 'wentOut' ? '出完手牌' : kind === 'twoPlayerStuck' ? '对手无法继续表演' : '表演存活一圈';
   addLog(room, `第 ${room.round} 轮结束：${playerLabel(room, winnerIdx)} ${reason}。`);
   addLog(room, detail.map((d) => `${d.name}（${d.idx + 1}号位）：本轮 ${d.roundScore}，总分 ${d.totalScore}`).join('；'));
@@ -484,6 +493,27 @@ function scoutPreview(room, playerIdx, edge) {
 io.on('connection', (socket) => {
   let joinedRoom = null;
   let joinedIdx = -1;
+  const sendHistory = (room) => socket.emit('history', { chat: room.chat, logs: room.logs });
+  const canControl = (room, p) => p && (!room.settings.hostOnly || p.id === room.hostId);
+
+  socket.on('settings', (payload, ack) => {
+    const room = joinedRoom;
+    const p = room && playerBySocket(room, socket.id);
+    if (!p || p.id !== room.hostId || room.phase !== 'lobby') return ack?.({ ok: false, message: '仅房主可在大厅修改设置' });
+    if (typeof payload?.hostOnly === 'boolean') room.settings.hostOnly = payload.hostOnly;
+    ack?.({ ok: true });
+    broadcast(room);
+  });
+
+  socket.on('ready', (payload, ack) => {
+    const room = joinedRoom;
+    const p = room && playerBySocket(room, socket.id);
+    if (!p || !['lobby', 'roundEnd', 'gameEnd'].includes(room.phase) || room.abandoned) return ack?.({ ok: false, message: '当前无法准备' });
+    p.ready = !p.ready;
+    ack?.({ ok: true });
+    if (room.phase === 'roundEnd' && room.players.every((x) => x.ready && x.connected)) startRound(room);
+    broadcast(room);
+  });
 
   socket.on('chat', (payload, ack) => {
     const room = joinedRoom;
@@ -512,6 +542,8 @@ io.on('connection', (socket) => {
   socket.on('join', (payload, ack) => {
     const code = String(payload && payload.room || '').trim().toUpperCase();
     const name = String(payload && payload.name || '').trim().slice(0, 12) || '玩家';
+    if (!/^[A-Z0-9]{4}$/.test(code)) return ack?.({ ok: false, message: '房间码需为4位字母或数字' });
+    if (joinedRoom && playerBySocket(joinedRoom, socket.id)) return ack?.({ ok: false, message: '你已在房间中' });
     let room = rooms.get(code);
     if (!room) {
       room = newRoom(code);
@@ -523,11 +555,14 @@ io.on('connection', (socket) => {
     if (pid) {
       const existing = playerById(room, pid);
       if (existing) {
+        const old = io.sockets.sockets.get(existing.socketId);
         existing.socketId = socket.id;
+        if (old && old.id !== socket.id) { old.emit('sessionReplaced'); old.disconnect(true); }
         existing.connected = true;
         joinedRoom = room;
         joinedIdx = room.players.indexOf(existing);
         if (typeof ack === 'function') ack({ ok: true, code: room.code, playerId: existing.id, idx: joinedIdx });
+        sendHistory(room);
         broadcast(room);
         return;
       }
@@ -557,10 +592,12 @@ io.on('connection', (socket) => {
     };
     if (!room.hostId) room.hostId = player.id;
     room.players.push(player);
+    room.players.forEach((x) => { x.ready = false; });
     joinedRoom = room;
     joinedIdx = room.players.length - 1;
 
     if (typeof ack === 'function') ack({ ok: true, code: room.code, playerId: player.id, idx: joinedIdx });
+    sendHistory(room);
     broadcast(room);
   });
 
@@ -570,6 +607,8 @@ io.on('connection', (socket) => {
     const p = playerBySocket(room, socket.id);
     if (!p) return;
     if (room.phase !== 'lobby') return;
+    if (!canControl(room, p)) return ack?.({ ok: false, message: '仅房主可开始游戏' });
+    if (!room.players.every((x) => x.ready && x.connected)) return ack?.({ ok: false, message: '请等待所有玩家准备并上线' });
     const n = room.players.length;
     if (n < 2) {
       if (typeof ack === 'function') ack({ ok: false, message: '至少需要 2 名玩家' });
@@ -579,6 +618,7 @@ io.on('connection', (socket) => {
     if (room.startPlayerIdx < 0) room.startPlayerIdx = 0;
     room.currentIdx = room.startPlayerIdx;
     room.round = 0;
+    room.results = [];
     room.players.forEach((x) => (x.totalScore = 0));
     startRound(room);
     if (typeof ack === 'function') ack({ ok: true });
@@ -591,6 +631,7 @@ io.on('connection', (socket) => {
     const idx = playerIndexBySocket(room, socket.id);
     if (room.phase !== 'orient') return;
     const p = room.players[idx];
+    if (!p || p.confirmed) return;
     p.hand.forEach((c) => {
       c.up = c.up === 'b' ? 'a' : 'b';
     });
@@ -602,6 +643,8 @@ io.on('connection', (socket) => {
     if (!room) return;
     const idx = playerIndexBySocket(room, socket.id);
     if (room.phase !== 'orient') return;
+    if (idx < 0) return;
+    if (room.players[idx].confirmed) return;
     room.players[idx].confirmed = true;
     if (room.players.every((p) => p.confirmed)) {
       room.phase = 'playing';
@@ -677,6 +720,7 @@ io.on('connection', (socket) => {
       return;
     }
     if (room.phase !== 'roundEnd') return;
+    if (!room.players.every((x) => x.ready && x.connected)) return ack?.({ ok: false, message: '等待全员准备' });
     startRound(room);
     if (typeof ack === 'function') ack({ ok: true });
     broadcast(room);
@@ -688,7 +732,11 @@ io.on('connection', (socket) => {
     const p = playerBySocket(room, socket.id);
     if (!p) return;
     if (room.phase !== 'gameEnd') return;
+    if (room.abandoned || room.players.length < 2) return;
+    if (!canControl(room, p)) return ack?.({ ok: false, message: '仅房主可再来一局' });
+    if (!room.players.every((x) => x.ready && x.connected)) return ack?.({ ok: false, message: '等待全员准备' });
     room.round = 0;
+    room.results = [];
     room.players.forEach((x) => (x.totalScore = 0));
     room.startPlayerIdx = room.players.findIndex((x) => x.id === room.hostId);
     if (room.startPlayerIdx < 0) room.startPlayerIdx = 0;
@@ -705,6 +753,7 @@ io.on('connection', (socket) => {
     if (!p) { if (typeof ack === 'function') ack({ ok: true }); return; }
 
     const wasInGame = room.phase !== 'lobby';
+    joinedRoom = null;
     room.players = room.players.filter((x) => x.id !== p.id);
 
     if (room.players.length === 0) {
@@ -716,12 +765,16 @@ io.on('connection', (socket) => {
     if (room.hostId === p.id) room.hostId = room.players[0].id;
 
     if (wasInGame) {
+      room.currentShow = null;
+      room.currentIdx = 0;
+      room.startPlayerIdx = 0;
       addLog(room, `${p.name} 退出房间，本局结束。`);
       // 对局中主动退出：结束本局，剩余玩家进入结算
       room.phase = 'gameEnd';
       room.lastRound = null;
       room.abandoned = true;
     }
+    room.players.forEach((x) => { x.ready = false; });
 
     if (typeof ack === 'function') ack({ ok: true });
     broadcast(room);
@@ -731,7 +784,7 @@ io.on('connection', (socket) => {
     const room = joinedRoom;
     if (!room) return;
     const p = playerBySocket(room, socket.id);
-    if (p) p.connected = false;
+    if (p) { p.connected = false; p.ready = false; }
     // 大厅中离开则移除；游戏中保留座位以便重连
     if (room.phase === 'lobby' && p) {
       room.players = room.players.filter((x) => x.id !== p.id);

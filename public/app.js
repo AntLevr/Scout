@@ -11,8 +11,13 @@ const S = {
   selected: [], // 已选中的手牌索引（升序）
   scout: null, // 挖角弹窗状态机
   scoutPending: false,
+  sessionActive: false,
   lastEventSeq: null, // 已播放的音效事件序号
 };
+
+function isOnline() { return socket.connected && S.sessionActive; }
+
+function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 function $(id) { return document.getElementById(id); }
 
@@ -32,7 +37,6 @@ function showOverlay(html) {
 }
 function closeOverlay() {
   $('overlay').classList.add('hidden');
-  S.scout = null;
 }
 
 function classify(values) {
@@ -90,15 +94,15 @@ function cardEl(value, extra = {}) {
   return el;
 }
 
-function copyText(text) {
+function copyText(text, message = '已复制房间码') {
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => toast('已复制房间码'));
+    navigator.clipboard.writeText(text).then(() => toast(message)).catch(() => toast('复制失败，请手动复制'));
   } else {
     const ta = document.createElement('textarea');
     ta.value = text;
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); toast('已复制房间码'); } catch (e) { toast('复制失败，请手动记下'); }
+    try { document.execCommand('copy'); toast(message); } catch (e) { toast('复制失败，请手动记下'); }
     document.body.removeChild(ta);
   }
 }
@@ -174,7 +178,7 @@ function renderLobby() {
       dot.className = 'dot' + (p.connected ? '' : ' off');
       const nm = document.createElement('span');
       nm.className = 'pname';
-      nm.textContent = p.name + (p.idx === S.me.yourIdx ? '（我）' : '');
+      nm.textContent = p.name + (p.idx === S.me.yourIdx ? '（我）' : '') + (p.ready ? ' ✓ 已准备' : ' · 未准备');
       const host = document.createElement('span');
       if (p.isHost) { host.className = 'host-badge'; host.textContent = '房主'; }
       div.appendChild(dot); div.appendChild(nm); if (p.isHost) div.appendChild(host);
@@ -183,8 +187,12 @@ function renderLobby() {
     const n = S.room.players.length;
     $('lobby-tip').textContent = n < 3 ? `等待玩家加入（当前 ${n} 人，至少 2 人可开局）…` : `当前 ${n} 人，可以开始！`;
     const isHost = S.room.players.find((p) => p.idx === S.me.yourIdx)?.isHost;
-    $('btn-start').classList.toggle('hidden', !isHost);
-    $('btn-start').disabled = n < 2;
+    $('btn-start').classList.toggle('hidden', S.room.settings.hostOnly && !isHost);
+    $('btn-start').disabled = !isOnline() || n < 2 || !S.room.players.every((p) => p.ready && p.connected);
+    $('btn-ready').textContent = S.room.players[S.me.yourIdx].ready ? '取消准备' : '准备';
+    $('btn-ready').disabled = !isOnline();
+    $('host-only').checked = S.room.settings.hostOnly;
+    $('host-only').disabled = !isHost || !isOnline();
   } else {
     $('lobby-form').classList.remove('hidden');
     $('room-panel').classList.add('hidden');
@@ -277,8 +285,8 @@ function renderTable(room) {
   wrap.className = 'table-show';
   const owner = document.createElement('div');
   owner.className = 'show-owner';
-  const ownerName = room.players[show.ownerIdx].name;
-  owner.innerHTML = `<b>${ownerName}</b> 的表演 <span class="show-type-badge ${show.type}">${TYPE_CN[show.type]}</span> <span style="opacity:.8">${show.length} 张 · 最大 ${show.top}</span>`;
+  const ownerName = room.players[show.ownerIdx]?.name || '已离开的玩家';
+  owner.innerHTML = `<b>${escapeHtml(ownerName)}</b> 的表演 <span class="show-type-badge ${show.type}">${TYPE_CN[show.type]}</span> <span style="opacity:.8">${show.length} 张 · 最大 ${show.top}</span>`;
   wrap.appendChild(owner);
   const cards = document.createElement('div');
   cards.className = 'show-cards';
@@ -304,11 +312,6 @@ function renderMyArea(room, me) {
   $('my-captured').textContent = room.players[me.yourIdx].scorePileCount;
   $('my-chips').textContent = room.players[me.yourIdx].chips;
   $('my-total').textContent = room.players[me.yourIdx].totalScore;
-  const ss = $('my-ss-token');
-  ss.classList.toggle('tok', true);
-  ss.classList.toggle('used', me.scoutShowUsed || room.players.length === 2);
-  ss.textContent = room.players.length === 2 ? '🪙 挖角消耗1筹码' : (me.scoutShowUsed ? '✨ 挖角+表演（已用）' : '✨ 挖角+表演（可用）');
-
   if (room.phase === 'orient') {
     renderOrientHand(me);
     renderInsertMarks();
@@ -337,6 +340,8 @@ function renderOrientHand(me) {
     actions.innerHTML = `
       <button class="btn btn-gold" id="btn-flip">翻转整手</button>
       <button class="btn btn-primary" id="btn-confirm-hand">确认手牌</button>`;
+    $('btn-flip').disabled = !isOnline();
+    $('btn-confirm-hand').disabled = !isOnline();
     $('btn-flip').addEventListener('click', () => socket.emit('flipHand'));
     $('btn-confirm-hand').addEventListener('click', () => socket.emit('confirmHand'));
     $('action-hint').textContent = '可选择翻转整手牌（换到另一面数字），确定后点击确认。';
@@ -433,6 +438,7 @@ function renderSelectionHint(room, me) {
 function renderActions(room, me) {
   const actions = $('actions');
   actions.innerHTML = '';
+  if (!isOnline()) { $('action-hint').textContent = '连接中断，等待恢复…'; return; }
   if (S.scoutPending) { $('action-hint').textContent = '正在确认挖角…'; return; }
   if (room.phase !== 'playing') { $('action-hint').textContent = ''; return; }
 
@@ -555,7 +561,9 @@ function startScout(scoutShow = false) {
 }
 
 function pickScoutEdge(edge) {
+  const scout = S.scout;
   socket.emit('scoutPreview', { edge }, (ack) => {
+    if (S.scout !== scout || !scout) return;
     if (!ack || !ack.ok) { toast('无法挖角'); return; }
     S.scout.edge = ack.edge;
     S.scout.card = ack.card;
@@ -578,7 +586,7 @@ function flipScoutCard() {
 function confirmScout(insertIndex) {
   const sc = S.scout;
   if (!sc || sc.step !== 'insert' || S.scoutPending) return;
-  if (!socket.connected) { toast('连接已断开，请等待重连'); return; }
+  if (!isOnline()) { toast('连接已断开，请等待重连'); return; }
   // 先展示插入结果，避免云端往返期间界面毫无反馈；规则仍由服务端确认。
   S.scoutPending = true;
   S.scout = null;
@@ -616,14 +624,14 @@ function renderRoundEndModal(room) {
   if (!lr) return;
   const winner = lr.detail[lr.winnerIdx];
   const endText =
-    lr.kind === 'wentOut' ? `${winner.name} 出完了手牌！`
-    : lr.kind === 'twoPlayerStuck' ? `${winner.name} 的表演无人能破！`
-    : `${winner.name} 的表演坚持了一圈！`;
+    lr.kind === 'wentOut' ? `${escapeHtml(winner.name)} 出完了手牌！`
+    : lr.kind === 'twoPlayerStuck' ? `${escapeHtml(winner.name)} 的表演无人能破！`
+    : `${escapeHtml(winner.name)} 的表演坚持了一圈！`;
   let rows = '';
   lr.detail.forEach((d) => {
     const isWin = d.idx === lr.winnerIdx;
     rows += `<tr class="${isWin ? 'winner-row' : ''}">
-      <td>${d.name}${isWin ? ' 🏆' : ''}</td>
+      <td>${escapeHtml(d.name)}${isWin ? ' 🏆' : ''}</td>
       <td>+${d.captured}</td><td>+${d.chips}</td><td>−${d.penalty}</td>
       <td><b>${d.roundScore >= 0 ? '+' : ''}${d.roundScore}</b></td>
       <td>${d.totalScore}</td></tr>`;
@@ -635,22 +643,36 @@ function renderRoundEndModal(room) {
       <tr><th>玩家</th><th>得分牌</th><th>筹码</th><th>手牌</th><th>本轮</th><th>总分</th></tr>
       ${rows}
     </table>
-    <div class="modal-actions"><button class="btn btn-primary" id="btn-next-round">进入下一轮 →</button></div>`);
-  $('btn-next-round').addEventListener('click', () => socket.emit('nextRound'));
+    ${renderReadiness(room)}
+    ${renderResults(room)}
+    <div class="modal-actions"><button class="btn btn-primary" id="btn-next-round">${room.players[S.me.yourIdx].ready ? '取消准备' : '准备下一轮'}</button></div>`);
+  $('btn-next-round').disabled = !isOnline();
+  $('btn-next-round').addEventListener('click', toggleReady);
+}
+
+function renderReadiness(room) {
+  return `<p class="ready-summary">${room.players.map((p) => `${escapeHtml(p.name)}（${p.idx + 1}号位）${!p.connected ? '：离线' : p.ready ? '：已准备' : '：未准备'}`).join(' · ')}</p>`;
+}
+
+function renderResults(room) {
+  if (!room.results.length) return '';
+  return `<details class="results"><summary>逐轮战绩（${room.results.length} 轮）</summary>${room.results.map((r) => `<h3>第 ${r.round} 轮</h3><table class="score-table"><tr><th>玩家</th><th>得分牌</th><th>筹码</th><th>扣分</th><th>本轮</th><th>总分</th></tr>${r.detail.map((d) => `<tr><td>${escapeHtml(d.name)}（${d.idx + 1}）</td><td>${d.captured}</td><td>${d.chips}</td><td>${d.penalty}</td><td>${d.roundScore}</td><td>${d.totalScore}</td></tr>`).join('')}</table>`).join('')}</details>`;
 }
 
 function renderGameEndModal(room) {
   const sorted = room.players.slice().sort((a, b) => b.totalScore - a.totalScore);
   const winner = sorted[0];
+  const winners = sorted.filter((p) => p.totalScore === winner.totalScore);
   const canRematch = room.players.length >= 2 && !room.abandoned;
   let rows = '';
   sorted.forEach((p, i) => {
-    rows += `<tr class="${i === 0 && !room.abandoned ? 'winner-row' : ''}">
-      <td>${i + 1}</td><td>${p.name}${i === 0 && !room.abandoned ? ' 🏆' : ''}</td><td><b>${p.totalScore}</b></td></tr>`;
+    const rank = sorted.findIndex((x) => x.totalScore === p.totalScore) + 1;
+    rows += `<tr class="${rank === 1 && !room.abandoned ? 'winner-row' : ''}">
+      <td>${rank}</td><td>${escapeHtml(p.name)}${rank === 1 && !room.abandoned ? ' 🏆' : ''}</td><td><b>${p.totalScore}</b></td></tr>`;
   });
   const endText = room.abandoned
     ? '<p style="text-align:center">有玩家退出了房间，本局结束。</p>'
-    : `<p style="text-align:center"><b>${winner.name}</b> 以 ${winner.totalScore} 分获胜，成为最佳马戏团长！</p>`;
+    : `<p style="text-align:center"><b>${winners.map((p) => escapeHtml(p.name)).join('、')}</b> 以 ${winner.totalScore} 分${winners.length > 1 ? '并列获胜' : '获胜'}！</p>`;
   showOverlay(`
     <h2>🎉 游戏结束</h2>
     ${endText}
@@ -658,11 +680,20 @@ function renderGameEndModal(room) {
       <tr><th>名次</th><th>玩家</th><th>总分</th></tr>
       ${rows}
     </table>
+    ${renderResults(room)}
+    ${canRematch ? renderReadiness(room) : ''}
     <div class="modal-actions">
       <button class="btn btn-ghost" id="btn-back-lobby">返回大厅</button>
-      ${canRematch ? '<button class="btn btn-primary" id="btn-rematch">再来一局</button>' : ''}
+      ${canRematch ? `<button class="btn btn-gold" id="btn-rematch-ready">${room.players[S.me.yourIdx].ready ? '取消准备' : '准备'}</button><button class="btn btn-primary" id="btn-rematch">再来一局</button>` : ''}
     </div>`);
-  if (canRematch) $('btn-rematch').addEventListener('click', () => socket.emit('rematch'));
+  if (canRematch) {
+    $('btn-rematch-ready').disabled = !isOnline();
+    $('btn-rematch-ready').addEventListener('click', toggleReady);
+    const isHost = room.players[S.me.yourIdx].isHost;
+    $('btn-rematch').classList.toggle('hidden', room.settings.hostOnly && !isHost);
+    $('btn-rematch').disabled = !isOnline() || !room.players.every((p) => p.ready && p.connected);
+    $('btn-rematch').addEventListener('click', () => socket.emit('rematch', {}, (ack) => { if (!ack.ok) toast(ack.message); }));
+  }
   $('btn-back-lobby').addEventListener('click', () => leaveGame());
 }
 
@@ -684,6 +715,36 @@ $('code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('b
 $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btn-create').click(); });
 
 $('btn-copy').addEventListener('click', () => copyText(S.room.code));
+$('btn-invite').addEventListener('click', () => {
+  const url = new URL(location.href);
+  url.search = ''; url.hash = '';
+  url.searchParams.set('room', S.room.code);
+  copyText(url.toString(), '已复制邀请链接');
+});
+function toggleReady() {
+  if (!isOnline()) return;
+  socket.emit('ready', {}, (ack) => { if (!ack?.ok) toast(ack?.message || '准备失败'); });
+}
+$('btn-ready').addEventListener('click', toggleReady);
+$('host-only').addEventListener('change', (event) => {
+  socket.emit('settings', { hostOnly: event.target.checked }, (ack) => { if (!ack?.ok) toast(ack?.message || '设置失败'); });
+});
+function updateSoundButton() { $('btn-sound').textContent = localStorage.getItem('scout-muted') === 'true' ? '音效：关' : '音效：开'; }
+$('btn-sound').addEventListener('click', () => {
+  localStorage.setItem('scout-muted', String(localStorage.getItem('scout-muted') !== 'true'));
+  updateSoundButton();
+});
+updateSoundButton();
+$('quick-chat').addEventListener('click', (event) => {
+  if (event.target.tagName !== 'BUTTON' || !isOnline()) return;
+  $('chat-input').value = event.target.textContent;
+  $('chat-form').requestSubmit();
+});
+let marksFrame = null;
+$('hand').addEventListener('scroll', () => {
+  if (marksFrame !== null) return;
+  marksFrame = requestAnimationFrame(() => { marksFrame = null; renderInsertMarks(); });
+});
 $('btn-start').addEventListener('click', () => { enterFullscreen(); socket.emit('startGame', {}, (ack) => { if (ack && !ack.ok) toast(ack.message); }); });
 $('btn-leave').addEventListener('click', () => leaveGame());
 $('btn-leave-game').addEventListener('click', () => {
@@ -743,6 +804,7 @@ function tone(freq, start, dur, type, gain) {
 }
 
 function playSfx(type) {
+  if (localStorage.getItem('scout-muted') === 'true') return;
   try {
     const ctx = ensureAudio();
     if (!ctx) return;
@@ -810,12 +872,15 @@ function toggleFullscreen() {
 /* ---------------- Socket 事件 ---------------- */
 
 socket.on('state', (data) => {
+  S.sessionActive = true;
+  $('connection-status').textContent = '已连接';
+  $('chat-send').disabled = false;
   $('chat-panel').classList.remove('hidden');
   requestAnimationFrame(clampChatPosition);
-  renderChat(data.public.chat || []);
-  renderLogs(data.public.logs || []);
+
   const prevIdx = S.room ? S.room.currentIdx : -1;
   const prevPhase = S.room ? S.room.phase : null;
+  if (prevPhase !== data.public.phase || data.public.currentIdx !== data.private.yourIdx) S.scout = null;
   S.room = data.public;
   S.me = data.private;
 
@@ -924,7 +989,11 @@ for (const name of ['chat', 'logs']) {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && chatOpen && chatTab === 'chat') { chatUnread = 0; updateChatNotice(); }
 });
-socket.on('chatHistory', renderChat);
+let chatMessages = [];
+let gameLogs = [];
+socket.on('chatHistory', (messages) => { chatMessages = messages; renderChat(messages); });
+socket.on('history', (history) => { chatMessages = history.chat; gameLogs = history.logs; renderChat(chatMessages); renderLogs(gameLogs); });
+socket.on('gameLog', (entry) => { if (!gameLogs.some((x) => x.id === entry.id)) gameLogs.push(entry); gameLogs = gameLogs.slice(-200); renderLogs(gameLogs); });
 $('chat-toggle').addEventListener('click', (event) => {
   if (suppressChatClick) { event.preventDefault(); return; }
   chatOpen = !chatOpen;
@@ -992,13 +1061,14 @@ chatHandle.addEventListener('contextmenu', (event) => event.preventDefault());
 window.addEventListener('resize', clampChatPosition);
 $('chat-form').addEventListener('submit', (event) => {
   event.preventDefault();
+  if (!isOnline()) return toast('连接尚未恢复，请稍后发送');
   const input = $('chat-input');
   const text = input.value.trim();
   if (!text) return;
   const button = $('chat-send');
   button.disabled = true;
   socket.timeout(5000).emit('chat', { text }, (err, ack) => {
-    button.disabled = false;
+    button.disabled = !isOnline();
     if (err) return toast('发送超时，请检查连接');
     if (!ack || !ack.ok) return toast(ack?.message || '发送失败');
     if (input.value.trim() === text) input.value = '';
@@ -1006,12 +1076,13 @@ $('chat-form').addEventListener('submit', (event) => {
 });
 
 socket.on('connect', () => {
+  $('connection-status').textContent = S.joined ? '正在恢复房间…' : '已连接';
   if (S.joined && S.room) {
     // 会话中断线后自动重连回原房间
     socket.emit('join', { room: S.room.code, name: S.name, playerId: S.playerId }, (ack) => {
       if (ack && ack.ok) { S.playerId = ack.playerId; localStorage.setItem('scout-playerId', S.playerId); }
     });
-  } else if (!S.joined && S.playerId && S.name) {
+  } else if (!S.joined && S.playerId && S.name && (!inviteCode || inviteCode === localStorage.getItem('scout-room'))) {
     // 刷新页面后自动回到之前的房间
     const roomCode = localStorage.getItem('scout-room');
     if (roomCode) {
@@ -1030,6 +1101,27 @@ socket.on('connect', () => {
 });
 
 /* ---------------- 初始 ---------------- */
+
+const inviteCode = new URL(location.href).searchParams.get('room')?.trim().toUpperCase();
+if (inviteCode && /^[A-Z0-9]{4}$/.test(inviteCode)) {
+  $('code-input').value = inviteCode;
+  toast('已填入邀请房间码，输入昵称后点击加入');
+}
+function markDisconnected(message) {
+  S.sessionActive = false;
+  S.scoutPending = false;
+  S.scout = null;
+  S.selected = [];
+  $('connection-status').textContent = message;
+  $('chat-send').disabled = true;
+  if (S.room) render();
+}
+socket.on('disconnect', () => markDisconnected('连接中断，正在重连…'));
+socket.on('connect_error', () => markDisconnected('连接失败，正在重试…'));
+socket.on('sessionReplaced', () => {
+  socket.disconnect();
+  markDisconnected('此座位已在另一标签页打开，请关闭本页');
+});
 
 $('name-input').value = S.name;
 if (S.name) { /* 保持空白状态，等待用户操作 */ }
