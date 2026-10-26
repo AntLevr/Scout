@@ -404,6 +404,13 @@ function doScout(room, playerIdx, opts) {
   if (room.currentShow.cards.length === 0) {
     room.currentShow = null;
     // 2 人局：拿空后当前玩家继续（按变体规则本轮仍可继续），否则换人
+  } else {
+    // 更新表演描述（类型/最大/张数），场上展示与比较都基于最新牌
+    const vals = room.currentShow.cards.map(activeValue);
+    const cls = classify(vals);
+    room.currentShow.type = cls.type;
+    room.currentShow.top = cls.top;
+    room.currentShow.length = room.currentShow.cards.length;
   }
 
   if (scoutShow && !p.scoutShowUsed && room.players.length !== 2) {

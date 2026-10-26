@@ -249,25 +249,3 @@ html, body {
   .actions { gap: 8px; }
   .hint { font-size: 12px; }
 }
-
-/* ---------------- 横屏提示（移动端游戏时强制横屏） ---------------- */
-.rotate-hint {
-  display: none;
-  position: fixed; inset: 0;
-  background: #144636;
-  color: #fdf6e3;
-  z-index: 200;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  font-size: 20px;
-  gap: 10px;
-}
-.rotate-hint .rotate-icon { font-size: 48px; }
-.rotate-hint .rotate-sub { font-size: 14px; opacity: 0.75; }
-
-@media (orientation: portrait) and (max-width: 768px) {
-  body.game-mode #rotate-hint { display: flex; }
-  body.game-mode #app { display: none; }
-}

@@ -523,6 +523,7 @@ function doShow() {
 function startScout() {
   S.selected = [];
   S.scout = { step: 'pick', edge: null, card: null, up: null, scoutShow: false };
+  renderHand(S.room, S.me);
   renderTable(S.room);
   $('action-hint').textContent = '🕵️ 点击当前表演最左或最右的一张牌；再点一次「侦察」可取消。';
   renderActions(S.room, S.me);
@@ -771,9 +772,6 @@ socket.on('state', (data) => {
       if (ev.targetIdx === S.me.yourIdx) playSfx(ev.type);
     }
   }
-
-  // 游戏模式标记（移动端横屏提示用）
-  document.body.classList.toggle('game-mode', S.room.phase !== 'lobby');
 
   // 阶段切换时重置选中与侦察状态
   if (S.room.phase !== 'playing') { S.selected = []; if (S.scout && S.scout.step === 'pick') S.scout = null; }
