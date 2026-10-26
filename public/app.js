@@ -8,7 +8,7 @@ const S = {
   joined: false,
   playerId: localStorage.getItem('scout-playerId') || null,
   name: localStorage.getItem('scout-name') || '',
-  sel: null, // {a, b} 手牌选中区间（含端点）
+  selected: [], // 已选中的手牌索引（升序）
   scout: null, // 侦察弹窗状态机
   lastEventSeq: null, // 已播放的音效事件序号
 };
@@ -49,12 +49,9 @@ function classify(values) {
 }
 
 function showBeats(a, b) {
-  if (a.length > b.length) return true;
-  if (a.length < b.length) return false;
-  if (a.top > b.top) return true;
-  if (a.top < b.top) return false;
-  if (a.type === 'set' && b.type === 'run') return true;
-  return false;
+  if (a.length !== b.length) return a.length > b.length;
+  if (a.type !== b.type) return a.type === 'set'; // 同张数：同数 > 顺子
+  return a.top > b.top;
 }
 
 const TYPE_CN = { set: '同数', run: '顺子' };
@@ -347,18 +344,16 @@ function renderOrientHand(me) {
   }
 }
 
-function selectionRange() {
-  if (!S.sel) return null;
-  const a = Math.min(S.sel.a, S.sel.b);
-  const b = Math.max(S.sel.a, S.sel.b);
-  return { a, b, indices: range(a, b) };
+function isContiguous(arr) {
+  for (let k = 1; k < arr.length; k++) {
+    if (arr[k] !== arr[k - 1] + 1) return false;
+  }
+  return true;
 }
-function range(a, b) { const r = []; for (let i = a; i <= b; i++) r.push(i); return r; }
 
 function renderHand(room, me) {
   const hand = $('hand');
   hand.innerHTML = '';
-  const sel = selectionRange();
   const inserting = S.scout && S.scout.step === 'insert';
   hand.classList.toggle('inserting', !!inserting);
 
@@ -372,7 +367,7 @@ function renderHand(room, me) {
       hand.appendChild(slot);
     }
     const other = c.value === c.a ? c.b : c.a;
-    const inSel = sel && i >= sel.a && i <= sel.b;
+    const inSel = S.selected.includes(i);
     const card = cardEl(c.value, { sub: other, idx: i, cls: inSel ? 'selected' : '' });
     if (!inserting) card.addEventListener('click', () => handTap(i));
     hand.appendChild(card);
@@ -390,25 +385,16 @@ function renderHand(room, me) {
   fitHand();
 }
 
-let selStart = null, selEnd = null;
-
 function handTap(i) {
   if (S.scout && S.scout.step === 'pick') { S.scout = null; renderTable(S.room); }
-  if (selStart == null) {
-    selStart = i;
-    selEnd = i;                 // 第一次点击：选这张
-  } else if (i === selStart) {
-    selStart = null;
-    selEnd = null;              // 点击锚点牌：取消选择
-  } else {
-    selEnd = i;                 // 点击另一张：以锚点为起点扩展/收缩区间
-  }
+  const idx = S.selected.indexOf(i);
+  if (idx >= 0) S.selected.splice(idx, 1);   // 已选中 → 取消该牌
+  else S.selected.push(i);                    // 未选中 → 选中该牌
+  S.selected.sort((a, b) => a - b);
   updateSelection();
 }
 
 function updateSelection() {
-  if (selStart == null) { S.sel = null; }
-  else S.sel = { a: selStart, b: selEnd };
   const room = S.room, me = S.me;
   if (room && me && room.phase === 'playing') {
     renderHand(room, me);
@@ -418,10 +404,11 @@ function updateSelection() {
 }
 
 function renderSelectionHint(room, me) {
-  const sel = selectionRange();
   const hint = $('action-hint');
-  if (!sel) { hint.textContent = '点击第一张，再点最后一张，选择连续手牌。'; return; }
-  const cards = sel.indices.map((i) => me.hand[i]);
+  const sel = S.selected;
+  if (sel.length === 0) { hint.textContent = '点击手牌选择要打出的牌（需相邻）。'; return; }
+  if (!isContiguous(sel)) { hint.textContent = '❌ 选中的牌必须相邻。'; return; }
+  const cards = sel.map((i) => me.hand[i]);
   const values = cards.map((c) => c.value);
   const cls = classify(values);
   if (!cls.valid) {
@@ -498,8 +485,8 @@ function renderActions(room, me) {
   }
 
   // 正常出牌
-  const sel = selectionRange();
-  const canShow = sel && classify(sel.indices.map((i) => me.hand[i]).map((c) => c.value)).valid;
+  const sel = S.selected;
+  const canShow = sel.length > 0 && isContiguous(sel) && classify(sel.map((i) => me.hand[i]).map((c) => c.value)).valid;
 
   const showBtn = document.createElement('button');
   showBtn.className = 'btn btn-primary';
@@ -517,25 +504,24 @@ function renderActions(room, me) {
 
   if (room.mustShow) {
     $('action-hint').textContent = '必须表演：请选择手牌打出。';
-  } else if (!S.sel) {
+  } else if (S.selected.length === 0) {
     $('action-hint').textContent = '选择要打出的牌，或点击「侦察」挖角。';
   }
 }
 
 function doShow() {
-  const sel = selectionRange();
-  if (!sel) return;
-  socket.emit('show', { indices: sel.indices }, (ack) => {
+  const sel = S.selected;
+  if (sel.length === 0 || !isContiguous(sel)) return;
+  socket.emit('show', { indices: sel }, (ack) => {
     if (ack && !ack.ok) toast(ack.message);
   });
-  selStart = selEnd = null;
-  S.sel = null;
+  S.selected = [];
 }
 
 /* ---------------- 侦察（内联交互，无弹窗） ---------------- */
 
 function startScout() {
-  S.sel = null; selStart = selEnd = null;
+  S.selected = [];
   S.scout = { step: 'pick', edge: null, card: null, up: null, scoutShow: false };
   renderTable(S.room);
   $('action-hint').textContent = '🕵️ 点击当前表演最左或最右的一张牌；再点一次「侦察」可取消。';
@@ -787,7 +773,7 @@ socket.on('state', (data) => {
   document.body.classList.toggle('game-mode', S.room.phase !== 'lobby');
 
   // 阶段切换时重置选中与侦察状态
-  if (S.room.phase !== 'playing') { S.sel = null; selStart = selEnd = null; if (S.scout && S.scout.step === 'pick') S.scout = null; }
+  if (S.room.phase !== 'playing') { S.selected = []; if (S.scout && S.scout.step === 'pick') S.scout = null; }
   render();
 });
 

@@ -74,12 +74,9 @@ function classify(values) {
 
 // 比较：张数多者胜；张数相同比最大数字；再相同则「同数」胜过「顺子」。
 function showBeats(newShow, curShow) {
-  if (newShow.length > curShow.length) return true;
-  if (newShow.length < curShow.length) return false;
-  if (newShow.top > curShow.top) return true;
-  if (newShow.top < curShow.top) return false;
-  if (newShow.type === 'set' && curShow.type === 'run') return true;
-  return false;
+  if (newShow.length !== curShow.length) return newShow.length > curShow.length;
+  if (newShow.type !== curShow.type) return newShow.type === 'set'; // 同张数：同数 > 顺子
+  return newShow.top > curShow.top;
 }
 
 /* ------------------------------------------------------------------ *
