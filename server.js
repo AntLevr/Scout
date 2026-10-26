@@ -108,6 +108,7 @@ function newRoom(code) {
     currentShow: null, // {ownerIdx, cards:[...], type, top, length}
     mustShow: false,
     lastRound: null, // 上轮结算明细
+    abandoned: false, // 是否因玩家退出而结束
   };
 }
 
@@ -175,6 +176,7 @@ function publicState(room) {
     startPlayerIdx: room.startPlayerIdx,
     currentIdx: room.currentIdx,
     mustShow: room.mustShow,
+    abandoned: room.abandoned,
     players: room.players.map((p, i) => ({
       idx: i,
       name: p.name,
@@ -624,6 +626,34 @@ io.on('connection', (socket) => {
     if (room.startPlayerIdx < 0) room.startPlayerIdx = 0;
     room.currentIdx = room.startPlayerIdx;
     startRound(room);
+    if (typeof ack === 'function') ack({ ok: true });
+    broadcast(room);
+  });
+
+  socket.on('leaveGame', (payload, ack) => {
+    const room = joinedRoom;
+    if (!room) { if (typeof ack === 'function') ack({ ok: true }); return; }
+    const p = playerBySocket(room, socket.id);
+    if (!p) { if (typeof ack === 'function') ack({ ok: true }); return; }
+
+    const wasInGame = room.phase !== 'lobby';
+    room.players = room.players.filter((x) => x.id !== p.id);
+
+    if (room.players.length === 0) {
+      rooms.delete(room.code);
+      if (typeof ack === 'function') ack({ ok: true });
+      return;
+    }
+
+    if (room.hostId === p.id) room.hostId = room.players[0].id;
+
+    if (wasInGame) {
+      // 对局中主动退出：结束本局，剩余玩家进入结算
+      room.phase = 'gameEnd';
+      room.lastRound = null;
+      room.abandoned = true;
+    }
+
     if (typeof ack === 'function') ack({ ok: true });
     broadcast(room);
   });

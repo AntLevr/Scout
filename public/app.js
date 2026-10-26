@@ -60,8 +60,8 @@ const TYPE_CN = { set: '同数', run: '顺子' };
 
 // 每个数字一种颜色（用于牌的两半着色）
 const NUMBER_COLORS = {
-  1: '#f4b6b6', 2: '#f8c98f', 3: '#f5e080', 4: '#aad69a', 5: '#8fd0c2',
-  6: '#a0c6ea', 7: '#bca9de', 8: '#e6abc9', 9: '#dbc3a2', 10: '#bcc6d2',
+  1: '#dc2626', 2: '#ea580c', 3: '#ca8a04', 4: '#16a34a', 5: '#0d9488',
+  6: '#2563eb', 7: '#7c3aed', 8: '#db2777', 9: '#9a5b2e', 10: '#64748b',
 };
 
 function cardEl(value, extra = {}) {
@@ -596,23 +596,27 @@ function renderRoundEndModal(room) {
 function renderGameEndModal(room) {
   const sorted = room.players.slice().sort((a, b) => b.totalScore - a.totalScore);
   const winner = sorted[0];
+  const canRematch = room.players.length >= 2 && !room.abandoned;
   let rows = '';
   sorted.forEach((p, i) => {
-    rows += `<tr class="${i === 0 ? 'winner-row' : ''}">
-      <td>${i + 1}</td><td>${p.name}${i === 0 ? ' 🏆' : ''}</td><td><b>${p.totalScore}</b></td></tr>`;
+    rows += `<tr class="${i === 0 && !room.abandoned ? 'winner-row' : ''}">
+      <td>${i + 1}</td><td>${p.name}${i === 0 && !room.abandoned ? ' 🏆' : ''}</td><td><b>${p.totalScore}</b></td></tr>`;
   });
+  const endText = room.abandoned
+    ? '<p style="text-align:center">有玩家退出了房间，本局结束。</p>'
+    : `<p style="text-align:center"><b>${winner.name}</b> 以 ${winner.totalScore} 分获胜，成为最佳马戏团长！</p>`;
   showOverlay(`
     <h2>🎉 游戏结束</h2>
-    <p style="text-align:center"><b>${winner.name}</b> 以 ${winner.totalScore} 分获胜，成为最佳马戏团长！</p>
+    ${endText}
     <table class="score-table">
       <tr><th>名次</th><th>玩家</th><th>总分</th></tr>
       ${rows}
     </table>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="btn-back-lobby">返回大厅</button>
-      <button class="btn btn-primary" id="btn-rematch">再来一局</button>
+      ${canRematch ? '<button class="btn btn-primary" id="btn-rematch">再来一局</button>' : ''}
     </div>`);
-  $('btn-rematch').addEventListener('click', () => socket.emit('rematch'));
+  if (canRematch) $('btn-rematch').addEventListener('click', () => socket.emit('rematch'));
   $('btn-back-lobby').addEventListener('click', () => leaveGame());
 }
 
@@ -636,14 +640,24 @@ $('name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('b
 $('btn-copy').addEventListener('click', () => copyText(S.room.code));
 $('btn-start').addEventListener('click', () => socket.emit('startGame', {}, (ack) => { if (ack && !ack.ok) toast(ack.message); }));
 $('btn-leave').addEventListener('click', () => leaveGame());
+$('btn-leave-game').addEventListener('click', () => {
+  if (confirm('确定退出房间？若对局进行中，本局将结束。')) leaveGame();
+});
 
 function leaveGame() {
-  localStorage.removeItem('scout-room');
-  localStorage.removeItem('scout-playerId');
-  S.joined = false;
-  S.playerId = null;
-  socket.disconnect();
-  location.reload();
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    localStorage.removeItem('scout-room');
+    localStorage.removeItem('scout-playerId');
+    S.joined = false;
+    S.playerId = null;
+    socket.disconnect();
+    location.reload();
+  };
+  socket.emit('leaveGame', {}, finish);
+  setTimeout(finish, 1500);
 }
 
 function openRules() {

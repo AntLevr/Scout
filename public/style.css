@@ -44,6 +44,7 @@ html, body {
 .btn-primary { background: linear-gradient(180deg, #ef5b5b, #d63a3a); box-shadow: 0 4px 14px rgba(214, 58, 58, 0.4); }
 .btn-outline { background: transparent; border: 2px solid #e8c987; color: #f6e3b0; }
 .btn-ghost { background: transparent; color: #f6e3b0; }
+.btn-danger { background: transparent; color: #ffb4b4; }
 .btn-mini { padding: 6px 12px; font-size: 13px; border-radius: 9px; }
 .btn-block { display: block; width: 100%; margin-top: 12px; }
 .btn-gold { background: linear-gradient(180deg, #f7c95c, #e9a41c); color: #5b3a00; box-shadow: 0 4px 14px rgba(233, 164, 28, 0.4); }
@@ -144,9 +145,9 @@ html, body {
   font-variant-numeric: tabular-nums;
   touch-action: none;
 }
-.card .v-main { position: absolute; top: 4px; left: 6px; font-size: 40px; font-weight: 900; color: #2b1d10; line-height: 1; }
+.card .v-main { position: absolute; top: 4px; left: 6px; font-size: 40px; font-weight: 900; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.4); line-height: 1; }
 .card .v-main.d2 { font-size: 32px; top: 6px; }
-.card .v-sub { position: absolute; bottom: 4px; right: 6px; font-size: 18px; font-weight: 800; color: #4a3a28; transform: rotate(180deg); line-height: 1; }
+.card .v-sub { position: absolute; bottom: 4px; right: 6px; font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.4); transform: rotate(180deg); line-height: 1; }
 .card .underlined { text-decoration: underline; text-underline-offset: 4px; }
 .card.small { width: 56px; height: 80px; }
 .card.small .v-main { font-size: 29px; top: 3px; left: 5px; }
