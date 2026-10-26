@@ -207,7 +207,7 @@ body { height: auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-
 .card.selected { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242,182,61,0.55), 0 3px 8px rgba(0,0,0,0.3); position: relative; top: -5px; }
 .card.show-edge { outline: 3px solid var(--gold); outline-offset: 3px; box-shadow: 0 0 14px rgba(242,182,61,.55); }
 .card.scout-unavailable { opacity: .35; }
-.card.scout-chosen { transform: scale(1.5); z-index: 1; outline: 2px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 16px rgba(242,182,61,.5); }
+.card.scout-chosen { transform: scale(1.4); z-index: 1; outline: 2px solid var(--gold); outline-offset: 2px; box-shadow: 0 0 16px rgba(242,182,61,.5); }
 .show-cards:has(.scout-chosen) { padding: 24px 17px; }
 .card.flipped-note { background: #fff3d6; }
 
