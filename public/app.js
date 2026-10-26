@@ -651,7 +651,7 @@ function pickScoutEdge(edge) {
     renderHand(S.room, S.me);
     renderActions(S.room, S.me);
     renderInsertMarks();
-    $('action-hint').textContent = '点击手牌上方的「▼」插入；点击选中的牌翻转朝向。';
+    $('action-hint').textContent = '点击选中的牌翻转，点击周围桌面重新选牌；点击手牌上方「▼」插入。';
   });
 }
 
@@ -695,6 +695,11 @@ function cancelScout() {
   renderInsertMarks();
   $('action-hint').textContent = '选择要打出的牌，或点击「挖角」。';
 }
+
+$('table').addEventListener('click', (event) => {
+  if (S.scout?.step !== 'insert' || S.scoutPending || event.target.closest('.scout-chosen')) return;
+  startScout(S.scout.scoutShow);
+});
 
 /* ---------------- 结算弹窗 ---------------- */
 
@@ -826,6 +831,14 @@ $('btn-leave-game').addEventListener('click', () => {
   if (confirm('确定退出房间？若对局进行中，本局将结束。')) leaveGame();
 });
 $('btn-fullscreen').addEventListener('click', toggleFullscreen);
+$('btn-lobby-fullscreen').addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => {
+  const active = !!document.fullscreenElement;
+  $('btn-lobby-fullscreen').textContent = active ? '⛶ 退出全屏' : '⛶ 全屏';
+  $('btn-lobby-fullscreen').setAttribute('aria-pressed', String(active));
+  $('btn-fullscreen').setAttribute('aria-pressed', String(active));
+  $('btn-fullscreen').title = active ? '退出全屏' : '全屏';
+});
 
 function leaveGame() {
   let done = false;

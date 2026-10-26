@@ -193,3 +193,30 @@ test('host has no ready button; guest readiness controls start and button colors
   assert(!elements.get('modal').innerHTML.includes('id="btn-rematch-ready"'));
   assert.equal(elements.get('btn-rematch').disabled, false);
 });
+
+test('clicking the table around a selected scout card returns to picking without losing combo mode', () => {
+  const { ctx, elements, handlers, data } = setup(); handlers.state(data());
+  vm.runInContext("startScout(true); S.scout.step = 'insert'; S.scout.card = {a:3,b:7}; S.scout.up = 'b'; S.scout.edge = 'left'", ctx);
+  elements.get('table').events.click({ target: { closest: () => ({}) } });
+  assert.equal(vm.runInContext('S.scout.step', ctx), 'insert');
+  elements.get('table').events.click({ target: { closest: () => null } });
+  assert.equal(vm.runInContext('S.scout.step', ctx), 'pick');
+  assert.equal(vm.runInContext('S.scout.scoutShow', ctx), true);
+  assert.equal(vm.runInContext('S.scout.card', ctx), null);
+  assert.equal(elements.get('insert-marks').children.length, 0);
+});
+
+test('lobby fullscreen button toggles fullscreen and follows external exit', () => {
+  const { ctx, elements, documentEvents } = setup();
+  let enters = 0, exits = 0;
+  ctx.document.documentElement = { requestFullscreen() { enters++; return Promise.resolve(); } };
+  ctx.document.exitFullscreen = () => { exits++; return Promise.resolve(); };
+  elements.get('btn-lobby-fullscreen').events.click(); assert.equal(enters, 1);
+  ctx.document.fullscreenElement = {};
+  documentEvents.fullscreenchange();
+  assert.equal(elements.get('btn-lobby-fullscreen').textContent, '⛶ 退出全屏');
+  elements.get('btn-lobby-fullscreen').events.click(); assert.equal(exits, 1);
+  ctx.document.fullscreenElement = null; documentEvents.fullscreenchange();
+  assert.equal(elements.get('btn-lobby-fullscreen').textContent, '⛶ 全屏');
+  assert.equal(elements.get('btn-lobby-fullscreen')['aria-pressed'], 'false');
+});
