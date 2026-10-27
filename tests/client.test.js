@@ -25,10 +25,11 @@ function setup() {
     appendChild(e) { this.children.push(e); }
     append(...items) { this.children.push(...items); }
     replaceChildren() { this.children = []; }
+    remove() { this.removed = true; }
     addEventListener(name, fn) { this.events[name] = fn; }
     setAttribute(name, value) { this[name] = value; }
     querySelectorAll() { return this.children; }
-    getBoundingClientRect() { return { left: 6, right: 64, top: 64, width: 340, height: 40 }; }
+    getBoundingClientRect() { return { left: 6, right: 64, top: 64, bottom: 104, width: 340, height: 40 }; }
     focus() {}
   }
   const html = fs.readFileSync(path.resolve(__dirname, '../public/index.html'), 'utf8');
@@ -271,6 +272,37 @@ test('both round and final settlements display the last public show above result
   assert.equal(elements.get('settlement-show').children.length, 0);
 });
 
+test('live chat bubbles expire, replace per player and do not replay history', () => {
+  const { ctx, handlers, data, timers, elements } = setup(); handlers.state(data());
+  const old = { id: 'old', seat: 2, name: 'B', text: 'old', time: 1 };
+  handlers.history({ chat: [old], logs: [] });
+  assert.equal(vm.runInContext('chatBubbles.size', ctx), 0);
+  const message = { id: 'new', seat: 2, name: 'B', text: '你好😀', time: 2 };
+  handlers.chatHistory([old, message]);
+  assert.equal(vm.runInContext('chatBubbles.size', ctx), 1);
+  const first = vm.runInContext('chatBubbles.get(1)', ctx);
+  assert.equal(first.node.textContent, 'B：你好😀');
+  handlers.chatHistory([old, message, { ...message, id: 'newer', text: '👏' }]);
+  assert.equal(first.node.removed, true); assert.equal(timers.has(first.timer), false);
+  const current = vm.runInContext('chatBubbles.get(1)', ctx);
+  timers.get(current.timer)();
+  assert.equal(vm.runInContext('chatBubbles.size', ctx), 0);
+  assert.equal(current.node.removed, true);
+});
+
+test('emoji picker inserts at cursor without sending and respects message length', () => {
+  const { elements, socket } = setup();
+  let sends = 0; socket.emit = () => { sends++; };
+  const input = elements.get('chat-input');
+  input.value = '你好'; input.selectionStart = 1; input.selectionEnd = 1;
+  elements.get('emoji-picker').children[0].events.click();
+  assert.equal(input.value, '你😀好');
+  assert.equal(sends, 0);
+  input.value = 'x'.repeat(200); input.selectionStart = 200; input.selectionEnd = 200;
+  elements.get('emoji-picker').children[1].events.click();
+  assert.equal(input.value.length, 200);
+});
+
 test('BGM starts only on request, loops gently, shares controls and stops cleanly', async () => {
   const { ctx, elements } = setup();
   let starts = 0, stops = 0, buffers = 0, samples;
@@ -294,7 +326,7 @@ test('BGM starts only on request, loops gently, shares controls and stops cleanl
   assert.equal(elements.get('btn-bgm')['aria-pressed'], 'true');
   assert(samples.every((v) => Number.isFinite(v) && Math.abs(v) < .3));
   assert(samples.some((v) => Math.abs(v) > .01));
-  assert.equal(samples[0], 0); assert.equal(samples.at(-1), 0);
+  assert.equal(Math.abs(samples[0]), 0); assert.equal(Math.abs(samples.at(-1)), 0);
   await elements.get('btn-bgm').events.click();
   assert.equal(stops, 1);
   assert.equal(elements.get('btn-lobby-bgm')['aria-pressed'], 'false');

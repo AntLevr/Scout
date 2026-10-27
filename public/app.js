@@ -225,6 +225,7 @@ function joinRoom(code, name) {
     if (name) { S.name = name; localStorage.setItem('scout-name', name); }
     S.joined = true;
     renderLobby();
+    requestAnimationFrame(positionChatBubbles);
   });
 }
 
@@ -238,6 +239,7 @@ function renderLobby() {
     S.room.players.forEach((p) => {
       const div = document.createElement('div');
       div.className = 'player-item';
+      div.dataset.playerIdx = p.idx;
       const dot = document.createElement('span');
       dot.className = 'dot' + (p.connected ? '' : ' off');
       const nm = document.createElement('span');
@@ -292,6 +294,7 @@ function render() {
   renderTable(room);
   renderMyArea(room, me);
   renderTurnHint(room, me);
+  requestAnimationFrame(positionChatBubbles);
 
   if (overlayKind === 'rules') return;
   if (room.phase === 'roundEnd') renderRoundEndModal(room);
@@ -318,6 +321,7 @@ function renderOpponents(room) {
     const p = room.players[(S.me.yourIdx + offset) % n];
     const acting = room.phase === 'playing' && p.idx === room.currentIdx;
     const div = document.createElement('div');
+    div.dataset.playerIdx = p.idx;
     div.className = 'opponent seat-' + seats[offset - 1] + (acting ? ' active' : '') + (!p.connected ? ' offline' : '');
     div.setAttribute('aria-label', `${p.idx + 1}号位 ${p.name}，手牌${p.handCount}张，总分${p.totalScore}${acting ? '，行动中' : ''}${!p.connected ? '，离线' : ''}`);
     const header = document.createElement('div');
@@ -902,28 +906,25 @@ $('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) c
 const bgm = { ctx: null, buffer: null, source: null, gain: null, enabled: false, busy: false };
 
 function makeBgmBuffer(ctx) {
-  const rate = 22050, beat = 60 / 72, bar = beat * 4;
-  const buffer = ctx.createBuffer(1, Math.ceil(rate * bar * 8), rate);
+  const rate = 22050, duration = 32;
+  const buffer = ctx.createBuffer(1, rate * duration, rate);
   const samples = buffer.getChannelData(0);
-  const frequency = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
-  const chords = [[48, 55, 59, 64], [45, 52, 55, 60], [41, 48, 52, 57], [43, 50, 55, 59]];
-  const melody = [[72, 76], [74, 72], [69, 72], [71, 67], [76, 79], [76, 72], [74, 72], [71, 67]];
-  function note(midi, start, duration, volume, pad) {
-    const offset = Math.round(start * rate);
-    const count = Math.min(Math.floor(duration * rate), samples.length - offset);
-    const f = frequency(midi);
-    for (let i = 0; i < count; i++) {
-      const t = i / rate;
-      const attack = Math.min(1, t / (pad ? .6 : .04));
-      const release = Math.min(1, (count - 1 - i) / (rate * .5));
-      const envelope = attack * release * (pad ? 1 : Math.exp(-t * 1.7));
-      const phase = 2 * Math.PI * f * t;
-      samples[offset + i] += volume * envelope * (Math.sin(phase) + (pad ? .08 : .2) * Math.sin(phase * 2));
+  // 相邻和弦平滑交叠，潮汐包络与低通噪声营造缓慢涨落的海浪感。
+  const chords = [[48, 55, 60, 64], [45, 52, 60, 64], [41, 53, 57, 60], [43, 55, 59, 62]];
+  const frequencies = chords.map((chord) => chord.map((m) => 440 * Math.pow(2, (m - 69) / 12)));
+  let noise = 0, seed = 271828;
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / rate, section = Math.floor(t / 8), mix = (1 - Math.cos(Math.PI * (t % 8) / 8)) / 2;
+    const tide = .5 - .5 * Math.cos(2 * Math.PI * t / 8);
+    const edge = Math.min(1, t / 1.5, (samples.length - 1 - i) / rate / 1.5);
+    let pad = 0;
+    for (let j = 0; j < 4; j++) {
+      pad += (1 - mix) * Math.sin(2 * Math.PI * frequencies[section][j] * t)
+        + mix * Math.sin(2 * Math.PI * frequencies[(section + 1) % 4][j] * t);
     }
-  }
-  for (let b = 0; b < 8; b++) {
-    for (const pitch of chords[b % 4]) note(pitch, b * bar, bar, .016, true);
-    melody[b].forEach((pitch, i) => note(pitch, b * bar + (i * 2 + .25) * beat, beat * 1.7, .06, false));
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    noise = .985 * noise + .015 * (seed / 2147483648 - 1);
+    samples[i] = edge * (pad * (.008 + tide * .01) + noise * (.12 + tide * .5));
   }
   return buffer;
 }
@@ -1070,6 +1071,7 @@ function toggleFullscreen() {
 /* ---------------- Socket 事件 ---------------- */
 
 socket.on('state', (data) => {
+  if (S.room && S.room.players.length !== data.public.players.length) clearChatBubbles();
   S.sessionActive = true;
   setConnectionStatus('已连接');
   $('chat-send').disabled = false;
@@ -1106,6 +1108,72 @@ socket.on('state', (data) => {
 socket.on('error', (data) => toast(data.message));
 
 /* ---------------- 房间聊天 ---------------- */
+const chatBubbles = new Map();
+function clearChatBubbles() {
+  for (const entry of chatBubbles.values()) clearTimeout(entry.timer);
+  chatBubbles.clear();
+  $('chat-bubbles').replaceChildren();
+}
+function showChatBubble(message) {
+  if (!S.room || !S.me) return;
+  const idx = message.seat - 1;
+  if (!S.room.players[idx]) return;
+  const old = chatBubbles.get(idx);
+  if (old) { clearTimeout(old.timer); old.node.remove(); }
+  const node = document.createElement('div');
+  node.className = 'chat-bubble';
+  node.textContent = `${message.name}：${message.text}`;
+  $('chat-bubbles').appendChild(node);
+  const entry = { node, timer: null };
+  entry.timer = setTimeout(() => {
+    if (chatBubbles.get(idx) !== entry) return;
+    node.remove(); chatBubbles.delete(idx);
+  }, 5000);
+  chatBubbles.set(idx, entry);
+  requestAnimationFrame(positionChatBubbles);
+}
+function positionChatBubbles() {
+  if (!S.room || !S.me) return;
+  for (const [idx, entry] of chatBubbles) {
+    const lobby = S.room.phase === 'lobby';
+    const mine = idx === S.me.yourIdx;
+    const list = $(lobby ? 'lobby-players' : 'opponents');
+    const anchor = !lobby && mine ? $('myarea') : [...list.children].find((el) => Number(el.dataset.playerIdx) === idx);
+    if (!anchor) { entry.node.classList.add('hidden'); continue; }
+    entry.node.classList.remove('hidden');
+    const rect = anchor.getBoundingClientRect(), bubble = entry.node.getBoundingClientRect();
+    entry.node.style.left = Math.max(8, Math.min(window.innerWidth - bubble.width - 8, rect.left + (rect.width - bubble.width) / 2)) + 'px';
+    const top = !lobby && mine ? rect.top - bubble.height - 8 : rect.bottom + 6;
+    entry.node.style.top = Math.max(8, Math.min(window.innerHeight - bubble.height - 8, top)) + 'px';
+  }
+}
+window.addEventListener('resize', positionChatBubbles);
+window.addEventListener('scroll', positionChatBubbles, true);
+
+for (const emoji of ['😀', '😄', '😂', '🥹', '😉', '😍', '😎', '🤔', '😮', '😭', '😅', '😴', '👍', '👏', '🙌', '🙏', '❤️', '🔥', '✨', '🎉', '🎪', '🃏', '👀', '🌊']) {
+  const button = document.createElement('button');
+  button.type = 'button'; button.textContent = emoji;
+  button.setAttribute('aria-label', `插入表情 ${emoji}`);
+  button.addEventListener('click', () => {
+    const input = $('chat-input');
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    const next = input.value.slice(0, start) + emoji + input.value.slice(end);
+    if (next.length > 200) return toast('消息最多 200 个字符');
+    input.value = next;
+    input.focus(); input.setSelectionRange?.(start + emoji.length, start + emoji.length);
+    $('emoji-picker').classList.add('hidden');
+    $('emoji-toggle').setAttribute('aria-expanded', 'false');
+    requestAnimationFrame(clampChatPosition);
+  });
+  $('emoji-picker').appendChild(button);
+}
+$('emoji-toggle').addEventListener('click', () => {
+  const picker = $('emoji-picker');
+  picker.classList.toggle('hidden');
+  $('emoji-toggle').setAttribute('aria-expanded', String(!picker.classList.contains('hidden')));
+  requestAnimationFrame(clampChatPosition);
+});
 let chatOpen = false;
 let chatLastId = null;
 let chatUnread = 0;
@@ -1189,7 +1257,11 @@ document.addEventListener('visibilitychange', () => {
 });
 let chatMessages = [];
 let gameLogs = [];
-socket.on('chatHistory', (messages) => { chatMessages = messages; renderChat(messages); });
+socket.on('chatHistory', (messages) => {
+  const known = new Set(chatMessages.map((m) => m.id));
+  for (const message of messages) if (!known.has(message.id)) showChatBubble(message);
+  chatMessages = messages; renderChat(messages);
+});
 socket.on('history', (history) => { chatMessages = history.chat; gameLogs = history.logs; renderChat(chatMessages); renderLogs(gameLogs); });
 socket.on('gameLog', (entry) => { if (!gameLogs.some((x) => x.id === entry.id)) gameLogs.push(entry); gameLogs = gameLogs.slice(-200); renderLogs(gameLogs); });
 $('chat-toggle').addEventListener('click', (event) => {

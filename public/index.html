@@ -96,9 +96,11 @@
       <div id="chat-conversation" role="tabpanel" aria-labelledby="chat-tab">
       <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
       <form id="chat-form" class="chat-form">
+        <button id="emoji-toggle" class="btn emoji-toggle" type="button" aria-label="选择表情" aria-expanded="false" aria-controls="emoji-picker">😊</button>
         <input id="chat-input" maxlength="200" placeholder="说点什么…（最多200字）" aria-label="聊天消息" autocomplete="off" />
         <button id="chat-send" class="btn btn-primary" type="submit">发送</button>
       </form>
+      <div id="emoji-picker" class="emoji-picker hidden" role="group" aria-label="聊天表情"></div>
       <div class="quick-chat" id="quick-chat">
         <button type="button">稍等一下</button><button type="button">好牌！</button><button type="button">轮到你啦</button>
       </div>
@@ -113,6 +115,7 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
+  <div id="chat-bubbles" class="chat-bubbles" aria-live="polite"></div>
   <div id="card-preview" class="card-preview hidden" role="status" aria-label="完整手牌预览"></div>
 
   <script src="/socket.io/socket.io.js"></script>

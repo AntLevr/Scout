@@ -19,6 +19,12 @@
 .chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid #e6d5b0; }
 .chat-form input { flex: 1; min-width: 0; width: 0; border: 1px solid #d9c9a6; border-radius: 8px; padding: 8px; font-size: 16px; }
 .chat-form .btn { padding: 8px 12px; }
+.chat-form .emoji-toggle { padding: 6px; background: transparent; font-size: 20px; }
+.emoji-picker { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; padding: 6px 8px; border-top: 1px solid #e6d5b0; }
+.emoji-picker button { border: 0; border-radius: 8px; background: transparent; font-size: 23px; padding: 6px; cursor: pointer; }
+.emoji-picker button:hover, .emoji-picker button:focus-visible { background: #f7ecd2; }
+.chat-bubbles { position: fixed; inset: 0; pointer-events: none; z-index: 35; }
+.chat-bubble { position: fixed; max-width: min(200px, calc(100vw - 16px)); padding: 9px 12px; border: 1px solid #e8c987; border-radius: 14px; background: #fff8e5; color: #3a2a1a; box-shadow: 0 4px 14px rgba(0,0,0,.25); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
 .chat-panel:has(#chat-body.hidden) { width: auto; }
 .chat-toggle { touch-action: none; user-select: none; }
 .chat-toggle.dragging { cursor: grabbing; background: #a82626; }
