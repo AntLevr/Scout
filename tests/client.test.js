@@ -281,7 +281,8 @@ test('live chat bubbles expire, replace per player and do not replay history', (
   handlers.chatHistory([old, message]);
   assert.equal(vm.runInContext('chatBubbles.size', ctx), 1);
   const first = vm.runInContext('chatBubbles.get(1)', ctx);
-  assert.equal(first.node.textContent, 'B：你好😀');
+  assert.equal(first.node.textContent, '你好😀');
+  assert.equal(first.node.style.top, '64px');
   handlers.chatHistory([old, message, { ...message, id: 'newer', text: '👏' }]);
   assert.equal(first.node.removed, true); assert.equal(timers.has(first.timer), false);
   const current = vm.runInContext('chatBubbles.get(1)', ctx);
@@ -311,7 +312,7 @@ test('BGM starts only on request, loops gently, shares controls and stops cleanl
     resume() { return Promise.resolve(); }
     suspend() { return Promise.resolve(); }
     createBuffer(channels, length, rate) {
-      buffers++; assert.equal(channels, 1); assert.equal(rate, 22050);
+      buffers++; assert.equal(channels, 1); assert.equal(rate, 22050); assert.equal(length, rate * 128);
       samples = new Float32Array(length);
       return { getChannelData: () => samples };
     }

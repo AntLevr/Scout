@@ -906,25 +906,42 @@ $('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) c
 const bgm = { ctx: null, buffer: null, source: null, gain: null, enabled: false, busy: false };
 
 function makeBgmBuffer(ctx) {
-  const rate = 22050, duration = 32;
+  const rate = 22050, duration = 128, sectionLength = 16;
   const buffer = ctx.createBuffer(1, rate * duration, rate);
   const samples = buffer.getChannelData(0);
-  // 相邻和弦平滑交叠，潮汐包络与低通噪声营造缓慢涨落的海浪感。
-  const chords = [[48, 55, 60, 64], [45, 52, 60, 64], [41, 53, 57, 60], [43, 55, 59, 62]];
-  const frequencies = chords.map((chord) => chord.map((m) => 440 * Math.pow(2, (m - 69) / 12)));
-  let noise = 0, seed = 271828;
+  // 仅使用有音高的和声、泛音和水滴旋律，不使用随机噪声。
+  const chords = [[48,55,60,64], [45,52,60,64], [41,53,57,60], [50,57,60,65],
+    [43,50,59,62], [45,52,60,67], [41,53,57,64], [48,55,62,64]];
+  const frequency = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
+  const frequencies = chords.map((chord) => chord.map(frequency));
+  let waterPhase = 0;
   for (let i = 0; i < samples.length; i++) {
-    const t = i / rate, section = Math.floor(t / 8), mix = (1 - Math.cos(Math.PI * (t % 8) / 8)) / 2;
-    const tide = .5 - .5 * Math.cos(2 * Math.PI * t / 8);
-    const edge = Math.min(1, t / 1.5, (samples.length - 1 - i) / rate / 1.5);
+    const t = i / rate, section = Math.floor(t / sectionLength);
+    const mix = (1 - Math.cos(Math.PI * (t % sectionLength) / sectionLength)) / 2;
+    const swell = .5 - .5 * Math.cos(2 * Math.PI * t / (7 + section % 3));
+    const undertow = .5 + .5 * Math.sin(2 * Math.PI * t / 19);
+    const edge = Math.min(1, t / 3, (samples.length - 1 - i) / rate / 3);
     let pad = 0;
     for (let j = 0; j < 4; j++) {
       pad += (1 - mix) * Math.sin(2 * Math.PI * frequencies[section][j] * t)
-        + mix * Math.sin(2 * Math.PI * frequencies[(section + 1) % 4][j] * t);
+        + mix * Math.sin(2 * Math.PI * frequencies[(section + 1) % 8][j] * t);
     }
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    noise = .985 * noise + .015 * (seed / 2147483648 - 1);
-    samples[i] = edge * (pad * (.008 + tide * .01) + noise * (.12 + tide * .5));
+    waterPhase += 2 * Math.PI * (130 + 35 * swell + 10 * undertow) / rate;
+    const water = Math.sin(waterPhase) + .18 * Math.sin(waterPhase * 2);
+    samples[i] = edge * (pad * (.007 + swell * .009) + water * swell * .012);
+  }
+  const motifs = [[72,76,79,76], [72,71,67,64], [69,72,76,72], [74,77,76,72],
+    [71,74,79,74], [76,79,81,79], [77,76,72,69], [76,74,72,67]];
+  for (let section = 0; section < 8; section++) {
+    motifs[section].forEach((midi, index) => {
+      const start = Math.round((section * sectionLength + 1.5 + index * 3.4) * rate);
+      const f = frequency(midi);
+      for (let k = 0; k < rate * 2.5 && start + k < samples.length; k++) {
+        const t = k / rate, edge = Math.min(1, (samples.length - start - k - 1) / rate / 3);
+        const envelope = Math.min(1, t / .12) * Math.exp(-t * 2) * Math.min(1, (2.5 - t) / .3);
+        samples[start + k] += edge * .025 * envelope * Math.sin(2 * Math.PI * f * t);
+      }
+    });
   }
   return buffer;
 }
@@ -1122,7 +1139,7 @@ function showChatBubble(message) {
   if (old) { clearTimeout(old.timer); old.node.remove(); }
   const node = document.createElement('div');
   node.className = 'chat-bubble';
-  node.textContent = `${message.name}：${message.text}`;
+  node.textContent = message.text;
   $('chat-bubbles').appendChild(node);
   const entry = { node, timer: null };
   entry.timer = setTimeout(() => {
@@ -1143,7 +1160,7 @@ function positionChatBubbles() {
     entry.node.classList.remove('hidden');
     const rect = anchor.getBoundingClientRect(), bubble = entry.node.getBoundingClientRect();
     entry.node.style.left = Math.max(8, Math.min(window.innerWidth - bubble.width - 8, rect.left + (rect.width - bubble.width) / 2)) + 'px';
-    const top = !lobby && mine ? rect.top - bubble.height - 8 : rect.bottom + 6;
+    const top = rect.top + (rect.height - bubble.height) / 2;
     entry.node.style.top = Math.max(8, Math.min(window.innerHeight - bubble.height - 8, top)) + 'px';
   }
 }
