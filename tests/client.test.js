@@ -220,3 +220,84 @@ test('lobby fullscreen button toggles fullscreen and follows external exit', () 
   assert.equal(elements.get('btn-lobby-fullscreen').title, '全屏');
   assert.equal(elements.get('btn-lobby-fullscreen')['aria-pressed'], 'false');
 });
+
+test('lobby broadcasts preserve rules and scroll, closing rules reveals pending settlement', () => {
+  const { ctx, handlers, data, elements } = setup();
+  const state = data(); state.public.phase = 'lobby';
+  vm.runInContext('S.joined = true', ctx); handlers.state(state);
+  vm.runInContext('openRules()', ctx);
+  const html = elements.get('modal').innerHTML;
+  elements.get('modal').scrollTop = 77;
+  state.public.players.push({ ...state.public.players[1], idx: 3, name: '新玩家' });
+  handlers.state(state);
+  assert.equal(elements.get('overlay').classList.contains('hidden'), false);
+  assert.equal(elements.get('modal').innerHTML, html);
+  assert.equal(elements.get('modal').scrollTop, 77);
+  state.public.phase = 'gameEnd'; handlers.state(state);
+  assert.equal(elements.get('modal').innerHTML, html);
+  vm.runInContext('closeOverlay()', ctx);
+  assert(elements.get('modal').innerHTML.includes('游戏结束'));
+  assert.equal(elements.get('overlay').classList.contains('hidden'), false);
+});
+
+test('settlement player badges and readiness count update on broadcast', () => {
+  const { handlers, data, elements } = setup();
+  const state = data(); state.public.phase = 'roundEnd';
+  state.public.lastRound = { kind: 'survived', winnerIdx: 0, detail: state.public.players.map((p) => ({ ...p, captured: 0, penalty: 0 })) };
+  handlers.state(state);
+  let html = elements.get('modal').innerHTML;
+  assert(html.includes('ready-host')); assert(html.includes('ready-no'));
+  assert(html.includes('已准备 0/2'));
+  state.public.players[1].ready = true; handlers.state(state);
+  html = elements.get('modal').innerHTML;
+  assert(html.includes('ready-yes')); assert(html.includes('已准备 1/2'));
+  state.public.players[2].connected = false; handlers.state(state);
+  assert(elements.get('modal').innerHTML.includes('ready-offline'));
+});
+
+test('both round and final settlements display the last public show above results', () => {
+  const { handlers, data, elements } = setup();
+  const state = data(); state.public.phase = 'roundEnd';
+  state.public.lastRound = { kind: 'survived', winnerIdx: 0, detail: state.public.players.map((p) => ({ ...p, captured: 0, penalty: 0 })) };
+  handlers.state(state);
+  let cards = elements.get('settlement-show').children[1].children;
+  assert.equal(cards[0].dataset.value, 3);
+  assert.equal(cards[0].dataset.other, 7);
+  assert(elements.get('settlement-show').children[0].textContent.includes('B'));
+  assert(elements.get('modal').innerHTML.indexOf('id="settlement-show"') < elements.get('modal').innerHTML.indexOf('<h2>'));
+  state.public.phase = 'gameEnd'; handlers.state(state);
+  assert.equal(elements.get('settlement-show').children[1].children.length, 1);
+  state.public.abandoned = true; state.public.currentShow = null; handlers.state(state);
+  assert.equal(elements.get('settlement-show').children.length, 0);
+});
+
+test('BGM starts only on request, loops gently, shares controls and stops cleanly', async () => {
+  const { ctx, elements } = setup();
+  let starts = 0, stops = 0, buffers = 0, samples;
+  class AudioContext {
+    constructor() { this.destination = {}; }
+    resume() { return Promise.resolve(); }
+    suspend() { return Promise.resolve(); }
+    createBuffer(channels, length, rate) {
+      buffers++; assert.equal(channels, 1); assert.equal(rate, 22050);
+      samples = new Float32Array(length);
+      return { getChannelData: () => samples };
+    }
+    createBufferSource() { return { connect() {}, disconnect() {}, start() { starts++; }, stop() { stops++; } }; }
+    createGain() { return { gain: {}, connect() {}, disconnect() {} }; }
+  }
+  ctx.window.AudioContext = AudioContext;
+  assert.equal(starts, 0);
+  await elements.get('btn-lobby-bgm').events.click();
+  assert.equal(starts, 1); assert.equal(buffers, 1);
+  assert.equal(vm.runInContext('bgm.source.loop', ctx), true);
+  assert.equal(elements.get('btn-bgm')['aria-pressed'], 'true');
+  assert(samples.every((v) => Number.isFinite(v) && Math.abs(v) < .3));
+  assert(samples.some((v) => Math.abs(v) > .01));
+  assert.equal(samples[0], 0); assert.equal(samples.at(-1), 0);
+  await elements.get('btn-bgm').events.click();
+  assert.equal(stops, 1);
+  assert.equal(elements.get('btn-lobby-bgm')['aria-pressed'], 'false');
+  await elements.get('btn-bgm').events.click();
+  assert.equal(buffers, 1); assert.equal(starts, 2);
+});

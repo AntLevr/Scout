@@ -38,12 +38,18 @@ function toast(msg) {
   t._timer = setTimeout(() => t.classList.add('hidden'), 2600);
 }
 
-function showOverlay(html) {
+let overlayKind = null;
+function showOverlay(html, kind = 'settlement') {
+  overlayKind = kind;
   $('modal').innerHTML = html;
   $('overlay').classList.remove('hidden');
 }
 function closeOverlay() {
+  const wasRules = overlayKind === 'rules';
+  overlayKind = null;
   $('overlay').classList.add('hidden');
+  if (wasRules && S.room?.phase === 'roundEnd') renderRoundEndModal(S.room);
+  else if (wasRules && S.room?.phase === 'gameEnd') renderGameEndModal(S.room);
 }
 
 function classify(values) {
@@ -270,7 +276,7 @@ function render() {
     $('game').classList.add('hidden');
     $('lobby').classList.remove('hidden');
     renderLobby();
-    closeOverlay();
+    if (overlayKind !== 'rules') closeOverlay();
     return;
   }
 
@@ -287,6 +293,7 @@ function render() {
   renderMyArea(room, me);
   renderTurnHint(room, me);
 
+  if (overlayKind === 'rules') return;
   if (room.phase === 'roundEnd') renderRoundEndModal(room);
   else if (room.phase === 'gameEnd') renderGameEndModal(room);
   else closeOverlay();
@@ -703,6 +710,19 @@ $('table').addEventListener('click', (event) => {
 
 /* ---------------- 结算弹窗 ---------------- */
 
+function renderSettlementShow(room) {
+  const container = $('settlement-show');
+  const show = room.currentShow;
+  if (!show?.cards.length) return;
+  const heading = document.createElement('div');
+  heading.className = 'settlement-show-title';
+  heading.textContent = `最后的表演 · ${room.players[show.ownerIdx]?.name || '玩家'} · ${TYPE_CN[show.type]} ${show.length} 张`;
+  const cards = document.createElement('div');
+  cards.className = 'show-cards';
+  for (const card of show.cards) cards.appendChild(cardEl(card.value, { sub: card.other, small: true }));
+  container.append(heading, cards);
+}
+
 function renderRoundEndModal(room) {
   const lr = room.lastRound;
   if (!lr) return;
@@ -715,12 +735,13 @@ function renderRoundEndModal(room) {
   lr.detail.forEach((d) => {
     const isWin = d.idx === lr.winnerIdx;
     rows += `<tr class="${isWin ? 'winner-row' : ''}">
-      <td>${escapeHtml(d.name)}${isWin ? ' 🏆' : ''}</td>
+      <td>${escapeHtml(d.name)}${isWin ? ' 🏆' : ''}<br>${readyBadge(room.players[d.idx])}</td>
       <td>+${d.captured}</td><td>+${d.chips}</td><td>−${d.penalty}</td>
       <td><b>${d.roundScore >= 0 ? '+' : ''}${d.roundScore}</b></td>
       <td>${d.totalScore}</td></tr>`;
   });
   showOverlay(`
+    <div id="settlement-show" class="settlement-show"></div>
     <h2>第 ${room.round} 轮结束</h2>
     <p style="text-align:center">${endText}</p>
     <table class="score-table">
@@ -730,6 +751,7 @@ function renderRoundEndModal(room) {
     ${renderReadiness(room)}
     ${renderResults(room)}
     <div class="modal-actions"><button class="btn ${room.players[S.me.yourIdx].ready ? 'btn-primary' : 'btn-gold'}" id="btn-next-round">${room.players[S.me.yourIdx].isHost ? '开始下一轮' : room.players[S.me.yourIdx].ready ? '取消准备' : '准备下一轮'}</button></div>`);
+  renderSettlementShow(room);
   const host = room.players[S.me.yourIdx].isHost;
   $('btn-next-round').disabled = !isOnline() || (host && !guestsReady(room));
   $('btn-next-round').addEventListener('click', host ? () => socket.emit('nextRound', {}, (ack) => { if (!ack?.ok) toast(ack?.message || '无法开始下一轮'); }) : toggleReady);
@@ -737,8 +759,17 @@ function renderRoundEndModal(room) {
 
 function guestsReady(room) { return room.players.every((p) => p.connected && (p.isHost || p.ready)); }
 
+function readyBadge(player) {
+  if (!player) return '';
+  const state = !player.connected ? 'offline' : player.isHost ? 'host' : player.ready ? 'yes' : 'no';
+  const label = { offline: '离线', host: '房主', yes: '✓ 已准备', no: '未准备' }[state];
+  return `<span class="ready-state ready-${state}">${label}</span>`;
+}
+
 function renderReadiness(room) {
-  return `<p class="ready-summary">${room.players.map((p) => `${escapeHtml(p.name)}（${p.idx + 1}号位）${!p.connected ? '：离线' : p.isHost ? '：房主' : p.ready ? '：已准备' : '：未准备'}`).join(' · ')}</p>`;
+  const guests = room.players.filter((p) => !p.isHost);
+  const ready = guests.filter((p) => p.ready && p.connected).length;
+  return `<p class="ready-summary" role="status">其他玩家已准备 ${ready}/${guests.length} · ${guestsReady(room) ? '等待房主开始' : '等待玩家准备或恢复连接'}</p>`;
 }
 
 function renderResults(room) {
@@ -755,12 +786,13 @@ function renderGameEndModal(room) {
   sorted.forEach((p, i) => {
     const rank = sorted.findIndex((x) => x.totalScore === p.totalScore) + 1;
     rows += `<tr class="${rank === 1 && !room.abandoned ? 'winner-row' : ''}">
-      <td>${rank}</td><td>${escapeHtml(p.name)}${rank === 1 && !room.abandoned ? ' 🏆' : ''}</td><td><b>${p.totalScore}</b></td></tr>`;
+      <td>${rank}</td><td>${escapeHtml(p.name)}${rank === 1 && !room.abandoned ? ' 🏆' : ''}${canRematch ? `<br>${readyBadge(p)}` : ''}</td><td><b>${p.totalScore}</b></td></tr>`;
   });
   const endText = room.abandoned
     ? '<p style="text-align:center">有玩家退出了房间，本局结束。</p>'
     : `<p style="text-align:center"><b>${winners.map((p) => escapeHtml(p.name)).join('、')}</b> 以 ${winner.totalScore} 分${winners.length > 1 ? '并列获胜' : '获胜'}！</p>`;
   showOverlay(`
+    <div id="settlement-show" class="settlement-show"></div>
     <h2>🎉 游戏结束</h2>
     ${endText}
     <table class="score-table">
@@ -773,6 +805,7 @@ function renderGameEndModal(room) {
       <button class="btn btn-ghost" id="btn-back-lobby">返回大厅</button>
       ${canRematch ? `${!room.players[S.me.yourIdx].isHost ? `<button class="btn ${room.players[S.me.yourIdx].ready ? 'btn-primary' : 'btn-gold'}" id="btn-rematch-ready">${room.players[S.me.yourIdx].ready ? '取消准备' : '准备'}</button>` : ''}<button class="btn btn-gold" id="btn-rematch">再来一局</button>` : ''}
     </div>`);
+  renderSettlementShow(room);
   if (canRematch) {
     if (!room.players[S.me.yourIdx].isHost) {
       $('btn-rematch-ready').disabled = !isOnline();
@@ -858,12 +891,88 @@ function leaveGame() {
 }
 
 function openRules() {
-  showOverlay(`<h2>📖 游戏规则</h2>${RULES_HTML}<div class="modal-actions"><button class="btn btn-primary" id="btn-close-rules">知道了</button></div>`);
+  showOverlay(`<h2>📖 游戏规则</h2>${RULES_HTML}<div class="modal-actions"><button class="btn btn-primary" id="btn-close-rules">知道了</button></div>`, 'rules');
   $('btn-close-rules').addEventListener('click', closeOverlay);
 }
 $('btn-rules').addEventListener('click', openRules);
 $('btn-rules2').addEventListener('click', openRules);
 $('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) closeOverlay(); });
+
+/* ---------------- 背景音乐：原创慢速和弦与轻柔旋律 ---------------- */
+const bgm = { ctx: null, buffer: null, source: null, gain: null, enabled: false, busy: false };
+
+function makeBgmBuffer(ctx) {
+  const rate = 22050, beat = 60 / 72, bar = beat * 4;
+  const buffer = ctx.createBuffer(1, Math.ceil(rate * bar * 8), rate);
+  const samples = buffer.getChannelData(0);
+  const frequency = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
+  const chords = [[48, 55, 59, 64], [45, 52, 55, 60], [41, 48, 52, 57], [43, 50, 55, 59]];
+  const melody = [[72, 76], [74, 72], [69, 72], [71, 67], [76, 79], [76, 72], [74, 72], [71, 67]];
+  function note(midi, start, duration, volume, pad) {
+    const offset = Math.round(start * rate);
+    const count = Math.min(Math.floor(duration * rate), samples.length - offset);
+    const f = frequency(midi);
+    for (let i = 0; i < count; i++) {
+      const t = i / rate;
+      const attack = Math.min(1, t / (pad ? .6 : .04));
+      const release = Math.min(1, (count - 1 - i) / (rate * .5));
+      const envelope = attack * release * (pad ? 1 : Math.exp(-t * 1.7));
+      const phase = 2 * Math.PI * f * t;
+      samples[offset + i] += volume * envelope * (Math.sin(phase) + (pad ? .08 : .2) * Math.sin(phase * 2));
+    }
+  }
+  for (let b = 0; b < 8; b++) {
+    for (const pitch of chords[b % 4]) note(pitch, b * bar, bar, .016, true);
+    melody[b].forEach((pitch, i) => note(pitch, b * bar + (i * 2 + .25) * beat, beat * 1.7, .06, false));
+  }
+  return buffer;
+}
+
+function updateBgmButtons() {
+  for (const id of ['btn-bgm', 'btn-lobby-bgm']) {
+    const button = $(id);
+    button.textContent = bgm.enabled ? '♫' : '♪';
+    button.title = bgm.enabled ? '关闭背景音乐' : '播放背景音乐';
+    button.setAttribute('aria-label', button.title);
+    button.setAttribute('aria-pressed', String(bgm.enabled));
+    button.disabled = bgm.busy;
+  }
+}
+
+async function toggleBgm() {
+  if (bgm.busy) return;
+  bgm.busy = true;
+  updateBgmButtons();
+  try {
+    if (bgm.enabled) {
+      bgm.source.stop(); bgm.source.disconnect(); bgm.gain.disconnect();
+      bgm.source = null; bgm.gain = null; bgm.enabled = false;
+      await bgm.ctx.suspend();
+    } else {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) throw new Error('unsupported');
+      if (!bgm.ctx) bgm.ctx = new AC();
+      await bgm.ctx.resume();
+      if (!bgm.buffer) bgm.buffer = makeBgmBuffer(bgm.ctx);
+      bgm.source = bgm.ctx.createBufferSource();
+      bgm.gain = bgm.ctx.createGain(); bgm.gain.gain.value = .35;
+      bgm.source.buffer = bgm.buffer; bgm.source.loop = true;
+      bgm.source.connect(bgm.gain); bgm.gain.connect(bgm.ctx.destination);
+      bgm.source.start(); bgm.enabled = true;
+    }
+  } catch (_) {
+    if (bgm.source) { try { bgm.source.stop(); } catch (_) {} bgm.source.disconnect(); }
+    bgm.gain?.disconnect(); bgm.source = null; bgm.gain = null; bgm.enabled = false;
+    toast('背景音乐暂时无法播放，请重试');
+  } finally { bgm.busy = false; updateBgmButtons(); }
+}
+$('btn-bgm').addEventListener('click', toggleBgm);
+$('btn-lobby-bgm').addEventListener('click', toggleBgm);
+document.addEventListener('visibilitychange', () => {
+  if (!bgm.enabled) return;
+  const action = document.hidden ? bgm.ctx.suspend() : bgm.ctx.resume();
+  action.catch(() => {});
+});
 
 /* ---------------- 音效 ---------------- */
 let audioCtx = null;

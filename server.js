@@ -579,10 +579,10 @@ io.on('connection', (socket) => {
       roundScore: 0,
       scoutShowUsed: false,
       confirmed: false,
+      ready: false,
     };
     if (!room.hostId) room.hostId = player.id;
     room.players.push(player);
-    room.players.forEach((x) => { x.ready = false; });
     joinedRoom = room;
     joinedIdx = room.players.length - 1;
 
@@ -604,8 +604,7 @@ io.on('connection', (socket) => {
       if (typeof ack === 'function') ack({ ok: false, message: '至少需要 2 名玩家' });
       return;
     }
-    room.startPlayerIdx = room.players.findIndex((x) => x.id === room.hostId);
-    if (room.startPlayerIdx < 0) room.startPlayerIdx = 0;
+    room.startPlayerIdx = crypto.randomInt(n);
     room.currentIdx = room.startPlayerIdx;
     room.round = 0;
     room.results = [];
@@ -729,8 +728,7 @@ io.on('connection', (socket) => {
     room.round = 0;
     room.results = [];
     room.players.forEach((x) => (x.totalScore = 0));
-    room.startPlayerIdx = room.players.findIndex((x) => x.id === room.hostId);
-    if (room.startPlayerIdx < 0) room.startPlayerIdx = 0;
+    room.startPlayerIdx = crypto.randomInt(room.players.length);
     room.currentIdx = room.startPlayerIdx;
     startRound(room);
     if (typeof ack === 'function') ack({ ok: true });

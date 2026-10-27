@@ -19,6 +19,7 @@ function setup() {
       if (name === 'express') return express;
       if (name === 'socket.io') return { Server };
       if (name === 'http') return { createServer: () => ({ listen() {} }) };
+      if (name === 'crypto') return { ...require('node:crypto'), randomInt: () => 0 };
       return require(name);
     },
     __dirname: path.resolve(__dirname, '..'), process, console,
@@ -59,6 +60,37 @@ test('only host can start and host never needs to ready', () => {
   assert.equal(room().players[0].ready, false);
   assert.equal(a.action('startGame').ok, true);
   assert.equal(room().phase, 'orient');
+});
+
+test('new lobby arrivals preserve existing readiness and must ready themselves', () => {
+  const { a, b, client, room } = setup();
+  b.action('ready');
+  const c = client('c'); c.action('join', { room: 'TEST', name: 'C' });
+  assert.equal(room().players[1].ready, true);
+  assert.equal(room().players[2].ready, false);
+  assert.equal(a.action('startGame').ok, false);
+  c.action('ready');
+  assert.equal(a.action('startGame').ok, true);
+});
+
+test('first starter is randomized on new game and rematch, later rounds rotate', () => {
+  const { a, b, room, context } = setup();
+  vm.runInContext('crypto.randomInt = () => 1', context);
+  b.action('ready'); a.action('startGame');
+  assert.equal(room().startPlayerIdx, 1);
+  a.action('confirmHand'); b.action('confirmHand');
+  assert.equal(room().currentIdx, 1);
+  room().players[1].hand = [{ id: 100, a: 1, b: 9, up: 'b' }];
+  b.action('show', { indices: [0] });
+  assert.equal(room().startPlayerIdx, 0);
+  b.action('ready'); a.action('nextRound');
+  a.action('confirmHand'); b.action('confirmHand');
+  assert.equal(room().currentIdx, 0);
+  room().players[0].hand = [{ id: 101, a: 1, b: 9, up: 'b' }];
+  a.action('show', { indices: [0] });
+  vm.runInContext('crypto.randomInt = () => 1', context);
+  b.action('ready'); a.action('rematch');
+  assert.equal(room().startPlayerIdx, 1);
 });
 
 test('takeover disables old connection without losing lobby seat', () => {
