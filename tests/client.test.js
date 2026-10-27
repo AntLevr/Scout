@@ -306,15 +306,15 @@ test('emoji picker inserts at cursor without sending and respects message length
 
 test('BGM starts only on request, loops gently, shares controls and stops cleanly', async () => {
   const { ctx, elements } = setup();
-  let starts = 0, stops = 0, buffers = 0, samples;
+  let starts = 0, stops = 0, buffers = 0;
+  ctx.fetch = async (url) => { assert.equal(url, '/audio/ocean-loop.wav'); return { ok: true, arrayBuffer: async () => new ArrayBuffer(16) }; };
   class AudioContext {
     constructor() { this.destination = {}; }
     resume() { return Promise.resolve(); }
     suspend() { return Promise.resolve(); }
-    createBuffer(channels, length, rate) {
-      buffers++; assert.equal(channels, 1); assert.equal(rate, 22050); assert.equal(length, rate * 128);
-      samples = new Float32Array(length);
-      return { getChannelData: () => samples };
+    decodeAudioData(bytes) {
+      assert.equal(bytes.byteLength, 16); buffers++;
+      return Promise.resolve({ duration: 138 });
     }
     createBufferSource() { return { connect() {}, disconnect() {}, start() { starts++; }, stop() { stops++; } }; }
     createGain() { return { gain: {}, connect() {}, disconnect() {} }; }
@@ -325,9 +325,6 @@ test('BGM starts only on request, loops gently, shares controls and stops cleanl
   assert.equal(starts, 1); assert.equal(buffers, 1);
   assert.equal(vm.runInContext('bgm.source.loop', ctx), true);
   assert.equal(elements.get('btn-bgm')['aria-pressed'], 'true');
-  assert(samples.every((v) => Number.isFinite(v) && Math.abs(v) < .3));
-  assert(samples.some((v) => Math.abs(v) > .01));
-  assert.equal(Math.abs(samples[0]), 0); assert.equal(Math.abs(samples.at(-1)), 0);
   await elements.get('btn-bgm').events.click();
   assert.equal(stops, 1);
   assert.equal(elements.get('btn-lobby-bgm')['aria-pressed'], 'false');

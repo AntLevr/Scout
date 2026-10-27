@@ -902,54 +902,19 @@ $('btn-rules').addEventListener('click', openRules);
 $('btn-rules2').addEventListener('click', openRules);
 $('overlay').addEventListener('click', (e) => { if (e.target === $('overlay')) closeOverlay(); });
 
-/* ---------------- 背景音乐：原创慢速和弦与轻柔旋律 ---------------- */
+/* ---------------- 背景海浪：真实录音，预处理为无缝循环 ---------------- */
 const bgm = { ctx: null, buffer: null, source: null, gain: null, enabled: false, busy: false };
 
-function makeBgmBuffer(ctx) {
-  const rate = 22050, duration = 128, sectionLength = 16;
-  const buffer = ctx.createBuffer(1, rate * duration, rate);
-  const samples = buffer.getChannelData(0);
-  // 仅使用有音高的和声、泛音和水滴旋律，不使用随机噪声。
-  const chords = [[48,55,60,64], [45,52,60,64], [41,53,57,60], [50,57,60,65],
-    [43,50,59,62], [45,52,60,67], [41,53,57,64], [48,55,62,64]];
-  const frequency = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
-  const frequencies = chords.map((chord) => chord.map(frequency));
-  let waterPhase = 0;
-  for (let i = 0; i < samples.length; i++) {
-    const t = i / rate, section = Math.floor(t / sectionLength);
-    const mix = (1 - Math.cos(Math.PI * (t % sectionLength) / sectionLength)) / 2;
-    const swell = .5 - .5 * Math.cos(2 * Math.PI * t / (7 + section % 3));
-    const undertow = .5 + .5 * Math.sin(2 * Math.PI * t / 19);
-    const edge = Math.min(1, t / 3, (samples.length - 1 - i) / rate / 3);
-    let pad = 0;
-    for (let j = 0; j < 4; j++) {
-      pad += (1 - mix) * Math.sin(2 * Math.PI * frequencies[section][j] * t)
-        + mix * Math.sin(2 * Math.PI * frequencies[(section + 1) % 8][j] * t);
-    }
-    waterPhase += 2 * Math.PI * (130 + 35 * swell + 10 * undertow) / rate;
-    const water = Math.sin(waterPhase) + .18 * Math.sin(waterPhase * 2);
-    samples[i] = edge * (pad * (.007 + swell * .009) + water * swell * .012);
-  }
-  const motifs = [[72,76,79,76], [72,71,67,64], [69,72,76,72], [74,77,76,72],
-    [71,74,79,74], [76,79,81,79], [77,76,72,69], [76,74,72,67]];
-  for (let section = 0; section < 8; section++) {
-    motifs[section].forEach((midi, index) => {
-      const start = Math.round((section * sectionLength + 1.5 + index * 3.4) * rate);
-      const f = frequency(midi);
-      for (let k = 0; k < rate * 2.5 && start + k < samples.length; k++) {
-        const t = k / rate, edge = Math.min(1, (samples.length - start - k - 1) / rate / 3);
-        const envelope = Math.min(1, t / .12) * Math.exp(-t * 2) * Math.min(1, (2.5 - t) / .3);
-        samples[start + k] += edge * .025 * envelope * Math.sin(2 * Math.PI * f * t);
-      }
-    });
-  }
-  return buffer;
+async function loadBgmBuffer(ctx) {
+  const response = await fetch('/audio/ocean-loop.wav');
+  if (!response.ok) throw new Error('audio-load-failed');
+  return ctx.decodeAudioData(await response.arrayBuffer());
 }
 
 function updateBgmButtons() {
   for (const id of ['btn-bgm', 'btn-lobby-bgm']) {
     const button = $(id);
-    button.textContent = bgm.enabled ? '♫' : '♪';
+    button.textContent = bgm.busy ? '…' : bgm.enabled ? '♫' : '♪';
     button.title = bgm.enabled ? '关闭背景音乐' : '播放背景音乐';
     button.setAttribute('aria-label', button.title);
     button.setAttribute('aria-pressed', String(bgm.enabled));
@@ -971,7 +936,7 @@ async function toggleBgm() {
       if (!AC) throw new Error('unsupported');
       if (!bgm.ctx) bgm.ctx = new AC();
       await bgm.ctx.resume();
-      if (!bgm.buffer) bgm.buffer = makeBgmBuffer(bgm.ctx);
+      if (!bgm.buffer) bgm.buffer = await loadBgmBuffer(bgm.ctx);
       bgm.source = bgm.ctx.createBufferSource();
       bgm.gain = bgm.ctx.createGain(); bgm.gain.gain.value = .35;
       bgm.source.buffer = bgm.buffer; bgm.source.loop = true;
