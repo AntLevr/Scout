@@ -314,7 +314,7 @@ test('BGM starts only on request, loops gently, shares controls and stops cleanl
     suspend() { return Promise.resolve(); }
     decodeAudioData(bytes) {
       assert.equal(bytes.byteLength, 16); buffers++;
-      return Promise.resolve({ duration: 138 });
+      return Promise.resolve({ duration: 160 });
     }
     createBufferSource() { return { connect() {}, disconnect() {}, start() { starts++; }, stop() { stops++; } }; }
     createGain() { return { gain: {}, connect() {}, disconnect() {} }; }
@@ -330,4 +330,14 @@ test('BGM starts only on request, loops gently, shares controls and stops cleanl
   assert.equal(elements.get('btn-lobby-bgm')['aria-pressed'], 'false');
   await elements.get('btn-bgm').events.click();
   assert.equal(buffers, 1); assert.equal(starts, 2);
+});
+
+test('bundled sea-and-music loop is a complete 160-second stereo WAV', () => {
+  const bytes = fs.readFileSync(path.resolve(__dirname, '../public/audio/ocean-loop.wav'));
+  assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
+  assert.equal(bytes.toString('ascii', 8, 12), 'WAVE');
+  assert.equal(bytes.readUInt16LE(22), 2);
+  assert.equal(bytes.readUInt32LE(24), 22050);
+  assert.equal(bytes.readUInt16LE(34), 16);
+  assert.equal(bytes.length, 44 + 160 * 22050 * 2 * 2);
 });
